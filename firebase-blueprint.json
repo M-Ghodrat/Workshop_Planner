@@ -1,0 +1,138 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role-based access control for UCW Workshop Planner",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Firebase Auth UID", "pattern": "^[a-zA-Z0-9_-]+$" },
+        "email": { "type": "string", "description": "User email address", "maxLength": 255 },
+        "displayName": { "type": "string", "description": "Full name of developer/admin", "maxLength": 150 },
+        "role": { "type": "string", "enum": ["administrator", "developer"], "description": "User platform role" },
+        "department": { "type": "string", "description": "UCW Academic Department/Faculty", "maxLength": 100 },
+        "avatarUrl": { "type": "string", "description": "Profile picture URL", "maxLength": 500 },
+        "assignedWorkshopCount": { "type": "number", "description": "Cached count of assigned workshops" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last profile update timestamp" }
+      },
+      "required": ["id", "email", "displayName", "role"]
+    },
+    "Workshop": {
+      "title": "Workshop",
+      "description": "Comprehensive UCW 2-Hour Workshop specification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique workshop ID", "pattern": "^[a-zA-Z0-9_-]+$" },
+        "prefix": { "type": "string", "description": "Course prefix code e.g. BUSI, MGMT, TECH", "maxLength": 10 },
+        "code": { "type": "string", "description": "Course number code e.g. 654", "maxLength": 20 },
+        "title": { "type": "string", "description": "Workshop title", "maxLength": 200 },
+        "description": { "type": "string", "description": "Detailed workshop description", "maxLength": 5000 },
+        "seriesId": { "type": "string", "description": "Associated Workshop Series ID", "maxLength": 128 },
+        "seriesName": { "type": "string", "description": "Cached Series title", "maxLength": 200 },
+        "prerequisites": { "type": "string", "description": "Prerequisite workshop IDs or descriptions", "maxLength": 500 },
+        "hasNoPrerequisites": { "type": "boolean", "description": "True if no prerequisite is required" },
+        "status": {
+          "type": "string",
+          "enum": ["Draft", "In Development", "Review", "Approved", "Published", "Archived"],
+          "description": "Lifecycle state of the workshop"
+        },
+        "assignedDeveloperIds": { "type": "array", "description": "List of user UIDs assigned to this workshop" },
+        "assignedDevelopers": { "type": "array", "description": "Array of developer profile snippets" },
+        "learningOutcomes": { "type": "array", "description": "List of up to 6 learning outcomes" },
+        "topics": { "type": "array", "description": "2-hour timeline topics with subtopics" },
+        "totalDurationMinutes": { "type": "number", "description": "Calculated total duration in minutes" },
+        "activities": { "type": "array", "description": "Hands-on interactive learning activities" },
+        "requiredResources": { "type": "array", "description": "Required materials and references" },
+        "optionalResources": { "type": "array", "description": "Optional reading and resources" },
+        "dimensionsOfKnowledge": { "type": "object", "description": "6 dimensions ratings" },
+        "createdBy": { "type": "string", "description": "UID of creator" },
+        "createdByName": { "type": "string", "description": "Name of creator", "maxLength": 150 },
+        "updatedBy": { "type": "string", "description": "UID of last editor" },
+        "updatedByName": { "type": "string", "description": "Name of last editor", "maxLength": 150 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["prefix", "code", "title", "status", "createdBy"]
+    },
+    "WorkshopSeries": {
+      "title": "WorkshopSeries",
+      "description": "Curriculum series bundling multiple workshops",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique series ID", "pattern": "^[a-zA-Z0-9_-]+$" },
+        "name": { "type": "string", "description": "Series title", "maxLength": 200 },
+        "description": { "type": "string", "description": "Series description", "maxLength": 3000 },
+        "coreFocus": { "type": "string", "description": "Core pedagogical focus", "maxLength": 1000 },
+        "prefix": { "type": "string", "description": "Default workshop prefix", "maxLength": 10 },
+        "workshopCount": { "type": "number", "description": "Number of workshops in this series" },
+        "workshopIds": { "type": "array", "description": "Ordered array of workshop IDs in this series" },
+        "status": { "type": "string", "enum": ["Active", "Archived", "Draft"], "description": "Series status" },
+        "createdBy": { "type": "string", "description": "UID of creator" },
+        "createdByName": { "type": "string", "description": "Name of creator", "maxLength": 150 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "coreFocus", "status", "createdBy"]
+    },
+    "Material": {
+      "title": "Material",
+      "description": "Workshop content file metadata and storage record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique material ID", "pattern": "^[a-zA-Z0-9_-]+$" },
+        "title": { "type": "string", "description": "Display title", "maxLength": 200 },
+        "fileName": { "type": "string", "description": "Original file name", "maxLength": 255 },
+        "fileType": { "type": "string", "description": "MIME type or file extension", "maxLength": 100 },
+        "fileSize": { "type": "number", "description": "File size in bytes" },
+        "description": { "type": "string", "description": "Material notes or description", "maxLength": 2000 },
+        "category": {
+          "type": "string",
+          "enum": [
+            "Workshop Material",
+            "Presentation",
+            "Activity",
+            "Exercise",
+            "Case Study",
+            "Reading",
+            "Reference",
+            "Template",
+            "Dataset",
+            "Assignment",
+            "Instructor Guide",
+            "Student Resource",
+            "Other"
+          ],
+          "description": "Category of workshop material"
+        },
+        "downloadUrl": { "type": "string", "description": "Firebase Storage download URL" },
+        "storagePath": { "type": "string", "description": "Internal Firebase Storage path" },
+        "workshopId": { "type": "string", "description": "Associated workshop ID" },
+        "workshopTitle": { "type": "string", "description": "Associated workshop title", "maxLength": 200 },
+        "activityId": { "type": "string", "description": "Optional associated hands-on activity ID" },
+        "uploadedBy": { "type": "string", "description": "UID of uploader" },
+        "uploadedByName": { "type": "string", "description": "Name of uploader", "maxLength": 150 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "fileName", "category", "downloadUrl", "uploadedBy"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles with role assignment"
+    },
+    "/workshops/{workshopId}": {
+      "schema": "Workshop",
+      "description": "Full workshop specifications, collaborative outlines, and timelines"
+    },
+    "/workshopSeries/{seriesId}": {
+      "schema": "WorkshopSeries",
+      "description": "Workshop curriculum series groupings"
+    },
+    "/materials/{materialId}": {
+      "schema": "Material",
+      "description": "Uploaded workshop content files and assets metadata"
+    }
+  }
+}
