@@ -238,9 +238,9 @@ export const TimelineTab: React.FC<TimelineTabProps> = ({
             <button
               type="button"
               onClick={handleAddTopic}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-950 text-white text-xs font-black uppercase tracking-wider hover:bg-slate-800 shadow-sm transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#002B49] text-white text-xs font-black uppercase tracking-wider hover:bg-[#003d66] shadow-xs transition-colors cursor-pointer"
             >
-              <Plus className="w-4 h-4 text-blue-400" />
+              <Plus className="w-4 h-4 text-sky-400" />
               <span>Add Topic</span>
             </button>
           </div>
@@ -273,7 +273,7 @@ export const TimelineTab: React.FC<TimelineTabProps> = ({
             <button
               type="button"
               onClick={applyBalancedPreset}
-              className="px-3.5 py-1.5 rounded-lg bg-slate-950 text-white text-xs font-black uppercase tracking-wider hover:bg-slate-800 cursor-pointer shadow-xs"
+              className="px-3.5 py-1.5 rounded-lg bg-[#002B49] text-white text-xs font-black uppercase tracking-wider hover:bg-[#003d66] cursor-pointer shadow-xs"
             >
               Load Standard 120m Framework
             </button>

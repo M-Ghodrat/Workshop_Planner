@@ -101,12 +101,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Welcome Banner with Bold Typography */}
-      <div className="rounded-2xl bg-slate-950 text-white p-6 sm:p-10 shadow-lg relative overflow-hidden border border-slate-800">
+      {/* Welcome Banner */}
+      <div className="rounded-2xl bg-gradient-to-r from-[#002B49] via-[#004270] to-[#00609c] text-white p-6 sm:p-10 shadow-md relative overflow-hidden border border-blue-900/30">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-blue-400 text-[10px] font-black uppercase tracking-[0.2em] backdrop-blur-xs">
-              <Sparkles className="w-3.5 h-3.5" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 text-sky-200 text-[10px] font-black uppercase tracking-[0.2em] backdrop-blur-xs border border-white/10">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
               <span>UCW Curriculum Development Portal</span>
             </div>
             <h1 className="text-3xl sm:text-5xl font-black tracking-tight uppercase">
@@ -118,17 +118,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
             {!isAdmin && (
               <button
                 onClick={onOpenCreateWorkshop}
-                className="flex items-center gap-2 px-5 py-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-wider text-xs shadow-md transition-all cursor-pointer"
+                className="flex items-center gap-2 px-5 py-3 rounded-xl bg-white hover:bg-sky-50 text-[#002B49] font-black uppercase tracking-wider text-xs shadow-md transition-all cursor-pointer"
               >
-                <PlusCircle className="w-4 h-4" />
+                <PlusCircle className="w-4 h-4 text-blue-600" />
                 <span>New Workshop</span>
               </button>
             )}
             <button
               onClick={() => onNavigate('series')}
-              className="flex items-center gap-2 px-4 py-3 rounded-lg bg-white/10 hover:bg-white/20 text-white font-black uppercase tracking-wider text-xs backdrop-blur-xs transition-colors cursor-pointer border border-white/20"
+              className="flex items-center gap-2 px-4 py-3 rounded-xl bg-white/15 hover:bg-white/25 text-white font-black uppercase tracking-wider text-xs backdrop-blur-xs transition-colors cursor-pointer border border-white/25"
             >
-              <Layers className="w-4 h-4 text-blue-400" />
+              <Layers className="w-4 h-4 text-sky-300" />
               <span>Explore Series</span>
             </button>
           </div>
@@ -304,7 +304,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </p>
                 <button
                   onClick={onOpenCreateWorkshop}
-                  className="px-4 py-2 rounded-lg bg-slate-950 text-white text-xs font-black uppercase tracking-wider hover:bg-slate-800 cursor-pointer"
+                  className="px-4 py-2 rounded-lg bg-[#002B49] text-white text-xs font-black uppercase tracking-wider hover:bg-[#003d66] cursor-pointer shadow-xs"
                 >
                   Create Workshop
                 </button>
@@ -326,9 +326,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       className="group flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-slate-200 hover:border-slate-400 hover:shadow-xs transition-all gap-4"
                     >
                       <div className="flex items-start gap-3.5 min-w-0">
-                        <div className="w-12 h-12 rounded-lg bg-slate-950 text-white flex flex-col items-center justify-center font-black text-xs shrink-0 shadow-xs">
-                          <span className="text-[9px] text-blue-400 leading-none">{w.prefix}</span>
-                          <span className="text-xs leading-tight font-black">{w.code}</span>
+                        <div className="w-12 h-12 rounded-xl bg-[#002B49] text-white flex flex-col items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                          <span className="text-[9px] text-sky-300 leading-none font-bold">{w.prefix}</span>
+                          <span className="text-xs leading-tight font-extrabold">{w.code}</span>
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -362,7 +362,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                     title={dev.email ? `${dev.name} (${dev.email})` : dev.name}
                                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 text-[10px] font-semibold border border-slate-200 shrink-0"
                                   >
-                                    <span className="w-3.5 h-3.5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[8px] font-bold">
+                                    <span className="w-3.5 h-3.5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[8px] font-bold">
                                       {dev.name?.charAt(0) || 'D'}
                                     </span>
                                     <span className="truncate max-w-[110px]">{dev.name}</span>
@@ -394,9 +394,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         </button>
                         <button
                           onClick={() => onSelectWorkshop(w, 'edit')}
-                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-950 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-wider transition-colors cursor-pointer shadow-xs"
+                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#002B49] hover:bg-[#003d66] text-white text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer shadow-xs"
                         >
-                          <Edit className="w-3.5 h-3.5 text-blue-400" />
+                          <Edit className="w-3.5 h-3.5 text-sky-400" />
                           <span>Open Workspace</span>
                         </button>
                       </div>

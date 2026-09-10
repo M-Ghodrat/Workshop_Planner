@@ -77,13 +77,13 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right controls */}
       <div className="flex items-center gap-3">
-        {/* Create Workshop quick action with Bold theme */}
+        {/* Create Workshop quick action */}
         {!isAdmin && (
           <button
             onClick={onOpenCreateWorkshop}
-            className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-950 text-white text-xs font-black uppercase tracking-wider hover:bg-slate-800 shadow-sm transition-all cursor-pointer"
+            className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-lg bg-[#002B49] text-white text-xs font-black uppercase tracking-wider hover:bg-[#003d66] shadow-xs transition-all cursor-pointer"
           >
-            <PlusCircle className="w-3.5 h-3.5 text-blue-400" />
+            <PlusCircle className="w-3.5 h-3.5 text-sky-400" />
             <span>New Workshop</span>
           </button>
         )}
@@ -109,8 +109,8 @@ export const Header: React.FC<HeaderProps> = ({
                 <span
                   className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-widest ${
                     isAdmin
-                      ? 'bg-slate-900 text-white'
-                      : 'bg-blue-100 text-blue-900'
+                      ? 'bg-purple-100 text-purple-900 border border-purple-200'
+                      : 'bg-teal-100 text-teal-900 border border-teal-200'
                   }`}
                 >
                   {isAdmin ? 'Admin' : 'Developer'}

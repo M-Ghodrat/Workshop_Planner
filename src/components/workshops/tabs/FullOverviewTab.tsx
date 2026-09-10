@@ -165,7 +165,7 @@ ${(workshop.assignedDevelopers || []).map((d) => `- ${d.name} (${d.role})`).join
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-lg bg-slate-950 text-white flex items-center justify-center text-xs font-black">
+              <span className="w-7 h-7 rounded-lg bg-[#002B49] text-white flex items-center justify-center text-xs font-bold">
                 01
               </span>
               <h2 className="text-base sm:text-lg font-black text-slate-950 uppercase tracking-tight flex items-center gap-2">
@@ -253,7 +253,7 @@ ${(workshop.assignedDevelopers || []).map((d) => `- ${d.name} (${d.role})`).join
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-lg bg-slate-950 text-white flex items-center justify-center text-xs font-black">
+              <span className="w-7 h-7 rounded-lg bg-[#002B49] text-white flex items-center justify-center text-xs font-bold">
                 02
               </span>
               <h2 className="text-base sm:text-lg font-black text-slate-950 uppercase tracking-tight flex items-center gap-2">
@@ -303,7 +303,7 @@ ${(workshop.assignedDevelopers || []).map((d) => `- ${d.name} (${d.role})`).join
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-lg bg-slate-950 text-white flex items-center justify-center text-xs font-black">
+              <span className="w-7 h-7 rounded-lg bg-[#002B49] text-white flex items-center justify-center text-xs font-bold">
                 03
               </span>
               <h2 className="text-base sm:text-lg font-black text-slate-950 uppercase tracking-tight flex items-center gap-2">
@@ -378,7 +378,7 @@ ${(workshop.assignedDevelopers || []).map((d) => `- ${d.name} (${d.role})`).join
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-lg bg-slate-950 text-white flex items-center justify-center text-xs font-black">
+              <span className="w-7 h-7 rounded-lg bg-[#002B49] text-white flex items-center justify-center text-xs font-bold">
                 04
               </span>
               <h2 className="text-base sm:text-lg font-black text-slate-950 uppercase tracking-tight flex items-center gap-2">
@@ -441,7 +441,7 @@ ${(workshop.assignedDevelopers || []).map((d) => `- ${d.name} (${d.role})`).join
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-lg bg-slate-950 text-white flex items-center justify-center text-xs font-black">
+              <span className="w-7 h-7 rounded-lg bg-[#002B49] text-white flex items-center justify-center text-xs font-bold">
                 05
               </span>
               <h2 className="text-base sm:text-lg font-black text-slate-950 uppercase tracking-tight flex items-center gap-2">
@@ -530,7 +530,7 @@ ${(workshop.assignedDevelopers || []).map((d) => `- ${d.name} (${d.role})`).join
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-lg bg-slate-950 text-white flex items-center justify-center text-xs font-black">
+              <span className="w-7 h-7 rounded-lg bg-[#002B49] text-white flex items-center justify-center text-xs font-bold">
                 06
               </span>
               <h2 className="text-base sm:text-lg font-black text-slate-950 uppercase tracking-tight flex items-center gap-2">
@@ -579,7 +579,7 @@ ${(workshop.assignedDevelopers || []).map((d) => `- ${d.name} (${d.role})`).join
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-lg bg-slate-950 text-white flex items-center justify-center text-xs font-black">
+              <span className="w-7 h-7 rounded-lg bg-[#002B49] text-white flex items-center justify-center text-xs font-bold">
                 07
               </span>
               <h2 className="text-base sm:text-lg font-black text-slate-950 uppercase tracking-tight flex items-center gap-2">
@@ -674,7 +674,7 @@ ${(workshop.assignedDevelopers || []).map((d) => `- ${d.name} (${d.role})`).join
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-lg bg-slate-950 text-white flex items-center justify-center text-xs font-black">
+              <span className="w-7 h-7 rounded-lg bg-[#002B49] text-white flex items-center justify-center text-xs font-bold">
                 08
               </span>
               <h2 className="text-base sm:text-lg font-black text-slate-950 uppercase tracking-tight flex items-center gap-2">

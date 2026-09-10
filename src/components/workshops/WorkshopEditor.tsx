@@ -609,9 +609,9 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
                 type="button"
                 onClick={() => handleSave(false)}
                 disabled={isSaving}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-slate-950 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-[0.2em] shadow-md transition-all cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#002B49] hover:bg-[#003d66] text-white text-xs font-black uppercase tracking-[0.2em] shadow-md transition-all cursor-pointer disabled:opacity-50"
               >
-                <Save className="w-3.5 h-3.5 text-amber-400" />
+                <Save className="w-3.5 h-3.5 text-amber-300" />
                 <span>{isSaving ? 'Saving...' : 'Save Outline'}</span>
               </button>
             </div>
@@ -644,15 +644,15 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
         
         {/* Left Column: Interactive Table of Contents */}
         <aside className="lg:col-span-4 xl:col-span-3 space-y-4 lg:sticky lg:top-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5 space-y-4">
-            <div className="border-b border-slate-200 pb-3 flex items-center justify-between">
+          <div className="bg-[#002B49] text-white rounded-2xl border border-[#00385F]/60 shadow-md p-4 sm:p-5 space-y-4">
+            <div className="border-b border-[#00385F]/60 pb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <ListOrdered className="w-4 h-4 text-blue-600" />
-                <h3 className="text-xs font-black uppercase tracking-[0.18em] text-slate-900">
+                <ListOrdered className="w-4 h-4 text-sky-400" />
+                <h3 className="text-xs font-black uppercase tracking-[0.18em] text-white">
                   Table of Contents
                 </h3>
               </div>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/15 text-sky-200 border border-white/10">
                 {tocSections.length} Sections
               </span>
             </div>
@@ -665,32 +665,32 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
 
                 if (section.isOverview) {
                   return (
-                    <div key={section.id} className="pt-2 mt-2 border-t border-slate-200">
+                    <div key={section.id} className="pt-2 mt-2 border-t border-[#00385F]/60">
                       <button
                         type="button"
                         onClick={() => setActiveTab(section.id)}
                         className={`w-full text-left p-3 rounded-xl transition-all flex items-center justify-between cursor-pointer ${
                           isActive
-                            ? 'bg-slate-950 text-white shadow-md'
-                            : 'bg-amber-50/70 border border-amber-200/80 text-amber-950 hover:bg-amber-100/60'
+                            ? 'bg-[#004270] text-white shadow-md border border-sky-400/40 ring-1 ring-sky-300/30'
+                            : 'bg-white/10 border border-white/10 text-white hover:bg-white/15'
                         }`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <span
                             className={`w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-black shrink-0 ${
-                              isActive ? 'bg-amber-400 text-slate-950' : 'bg-amber-200 text-amber-950'
+                              isActive ? 'bg-amber-400 text-slate-950' : 'bg-amber-400/30 text-amber-200'
                             }`}
                           >
                             {section.number}
                           </span>
                           <div className="min-w-0">
                             <div className="text-xs font-black uppercase tracking-tight truncate flex items-center gap-1.5">
-                              <IconComponent className="w-3.5 h-3.5 shrink-0" />
+                              <IconComponent className="w-3.5 h-3.5 shrink-0 text-amber-300" />
                               <span>{section.label}</span>
                             </div>
                             <div
                               className={`text-[10px] truncate ${
-                                isActive ? 'text-slate-300' : 'text-amber-800'
+                                isActive ? 'text-sky-200' : 'text-slate-300'
                               }`}
                             >
                               {section.description}
@@ -699,7 +699,7 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
                         </div>
                         <ChevronRight
                           className={`w-4 h-4 shrink-0 ${
-                            isActive ? 'text-amber-400' : 'text-amber-600'
+                            isActive ? 'text-amber-400' : 'text-slate-400'
                           }`}
                         />
                       </button>
@@ -719,18 +719,18 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
                       }}
                       className={`w-full text-left p-2.5 rounded-xl transition-all flex items-center justify-between cursor-pointer ${
                         isActive
-                          ? 'bg-slate-950 text-white shadow-sm ring-2 ring-slate-900'
-                          : 'bg-white hover:bg-slate-100/80 text-slate-800 border border-transparent hover:border-slate-200'
+                          ? 'bg-[#004270] text-white shadow-xs border border-sky-400/40 ring-1 ring-sky-300/30 font-bold'
+                          : 'text-slate-200 hover:text-white hover:bg-white/10 border border-transparent'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <span
                           className={`w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-black shrink-0 ${
                             isActive
-                              ? 'bg-blue-600 text-white'
+                              ? 'bg-sky-500 text-white'
                               : section.isFilled
-                              ? 'bg-slate-200 text-slate-800 font-bold'
-                              : 'bg-slate-100 text-slate-400'
+                              ? 'bg-white/20 text-white font-bold'
+                              : 'bg-white/10 text-slate-300'
                           }`}
                         >
                           {section.number}
@@ -739,16 +739,16 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
                           <div className="text-xs font-bold truncate flex items-center gap-1.5">
                             <IconComponent
                               className={`w-3.5 h-3.5 shrink-0 ${
-                                isActive ? 'text-amber-400' : 'text-slate-500'
+                                isActive ? 'text-sky-300' : 'text-slate-400'
                               }`}
                             />
-                            <span className={isActive ? 'font-black text-white' : 'text-slate-900'}>
+                            <span className={isActive ? 'font-black text-white' : 'text-slate-200'}>
                               {section.label}
                             </span>
                           </div>
                           <div
                             className={`text-[10px] truncate ${
-                              isActive ? 'text-slate-300' : 'text-slate-500'
+                              isActive ? 'text-sky-200/80' : 'text-slate-400'
                             }`}
                           >
                             {section.badge}
@@ -758,17 +758,17 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
 
                       <div className="flex items-center gap-1 shrink-0 ml-2">
                         {section.isFilled && !isActive && (
-                          <Check className="w-3 h-3 text-emerald-600" />
+                          <Check className="w-3 h-3 text-emerald-400" />
                         )}
                         <ChevronRight
                           className={`w-3.5 h-3.5 ${
-                            isActive ? 'text-amber-400' : 'text-slate-400'
+                            isActive ? 'text-sky-300' : 'text-slate-400'
                           }`}
                         />
                       </div>
                     </button>
 
-                    {/* Interactive Sub-items for Timeline (Topics) - Only displayed when timeline is active/selected */}
+                    {/* Interactive Sub-items for Timeline (Topics) */}
                     {section.id === 'timeline' && isActive && (
                       <div className="pl-4 pr-1 py-1 space-y-1 animate-in fade-in slide-in-from-top-1 duration-150">
                         {(workshop.topics || []).map((topic, tIdx) => {
@@ -787,16 +787,16 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
                               }}
                               className={`w-full text-left px-2.5 py-2 rounded-lg text-[11px] transition-all flex items-center justify-between gap-2 cursor-pointer border ${
                                 isTopicActive
-                                  ? 'bg-blue-50 border-blue-300 text-blue-950 font-bold shadow-2xs'
-                                  : 'bg-slate-50/70 border-slate-200/70 text-slate-700 hover:bg-slate-100/80 hover:text-slate-950'
+                                  ? 'bg-[#00385F] border-sky-400/50 text-white font-bold shadow-2xs'
+                                  : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:text-white'
                               }`}
                             >
                               <div className="flex items-center gap-2 min-w-0">
                                 <span
                                   className={`w-4 h-4 rounded text-[9px] flex items-center justify-center font-black shrink-0 ${
                                     isTopicActive
-                                      ? 'bg-blue-600 text-white'
-                                      : 'bg-slate-200 text-slate-700'
+                                      ? 'bg-sky-500 text-white'
+                                      : 'bg-white/10 text-slate-300'
                                   }`}
                                 >
                                   {tIdx + 1}
@@ -811,8 +811,8 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
                               <span
                                 className={`px-1.5 py-0.5 rounded text-[9px] font-black shrink-0 ${
                                   isTopicActive
-                                    ? 'bg-blue-200 text-blue-900'
-                                    : 'bg-slate-200/80 text-slate-600'
+                                    ? 'bg-sky-400/30 text-sky-200 border border-sky-300/30'
+                                    : 'bg-white/10 text-slate-300'
                                 }`}
                               >
                                 {topic.durationMinutes || 0}m
@@ -828,13 +828,13 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
             </nav>
 
             {/* Quick Completion Footer in TOC */}
-            <div className="pt-3 border-t border-slate-100">
+            <div className="pt-3 border-t border-[#00385F]/60">
               <button
                 type="button"
                 onClick={() => setActiveTab('full-overview')}
-                className="w-full py-2 px-3 text-center text-xs font-black text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                className="w-full py-2 px-3 text-center text-xs font-black text-sky-200 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5"
               >
-                <Layers className="w-3.5 h-3.5" />
+                <Layers className="w-3.5 h-3.5 text-sky-300" />
                 <span>View Full Overview</span>
               </button>
             </div>
@@ -844,16 +844,16 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
         {/* Right Column: Active Section Workspace */}
         <main className="lg:col-span-8 xl:col-span-9 space-y-6">
           {/* Section Breadcrumb & Header Title */}
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="bg-[#002B49] text-white p-4 sm:p-5 rounded-2xl border border-[#00385F]/60 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <span className="px-2.5 py-1 rounded-lg bg-slate-950 text-white font-mono text-xs font-black">
+              <span className="px-2.5 py-1 rounded-lg bg-sky-500 text-white font-mono text-xs font-bold shadow-xs">
                 SECTION {currentSection.number}
               </span>
               <div>
-                <h2 className="text-base sm:text-lg font-black text-slate-950 tracking-tight flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
                   <span>{currentSection.label}</span>
                 </h2>
-                <p className="text-xs text-slate-500">{currentSection.description}</p>
+                <p className="text-xs text-sky-200/80">{currentSection.description}</p>
               </div>
             </div>
 
@@ -862,7 +862,7 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
                 type="button"
                 onClick={handlePrevSection}
                 disabled={currentSectionIndex === 0}
-                className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                className="p-2 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
                 title="Previous section"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -871,7 +871,7 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
                 type="button"
                 onClick={handleNextSection}
                 disabled={currentSectionIndex === tocSections.length - 1}
-                className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                className="p-2 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 text-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
                 title="Next section"
               >
                 <ChevronRight className="w-4 h-4" />
@@ -977,9 +977,9 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
                 type="button"
                 onClick={() => handleSave(false)}
                 disabled={isSaving}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-[0.2em] shadow-md transition-all cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#002B49] hover:bg-[#003d66] text-white text-xs font-black uppercase tracking-[0.2em] shadow-md transition-all cursor-pointer disabled:opacity-50"
               >
-                <Save className="w-4 h-4 text-amber-400" />
+                <Save className="w-4 h-4 text-amber-300" />
                 <span>{isSaving ? 'Saving...' : 'Save Workshop'}</span>
               </button>
             </div>

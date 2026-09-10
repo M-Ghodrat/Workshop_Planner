@@ -125,9 +125,9 @@ export const UnsavedChangesModal: React.FC<UnsavedChangesModalProps> = ({
               type="button"
               onClick={onSaveAndContinue}
               disabled={isSaving}
-              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-white text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50"
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#002B49] hover:bg-[#003d66] text-white text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50"
             >
-              <Save className="w-3.5 h-3.5 text-amber-400" />
+              <Save className="w-3.5 h-3.5 text-amber-300" />
               <span>{isSaving ? 'Saving...' : 'Save & Continue'}</span>
             </button>
           )}

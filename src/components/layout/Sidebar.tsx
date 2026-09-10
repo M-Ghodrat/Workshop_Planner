@@ -88,22 +88,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`bg-slate-950 text-white flex flex-col transition-all duration-300 z-40 select-none border-r border-slate-900 shrink-0 ${
+      className={`bg-[#002B49] text-slate-100 flex flex-col transition-all duration-300 z-40 select-none border-r border-[#00385F]/60 shrink-0 shadow-md ${
         collapsed ? 'w-20' : 'w-64'
       }`}
     >
       {/* Brand Header */}
-      <div className={`border-b border-white/5 flex items-center justify-between ${collapsed ? 'p-4 justify-center' : 'p-6 sm:p-7'}`}>
+      <div className={`border-b border-[#00385F]/60 flex items-center justify-between ${collapsed ? 'p-4 justify-center' : 'p-6 sm:p-7'}`}>
         <div
           onClick={() => onNavigate('dashboard')}
           className="cursor-pointer overflow-hidden group"
         >
           {!collapsed ? (
             <div>
-              <div className="text-[10px] font-black tracking-widest text-slate-500 uppercase mb-1">
+              <div className="text-[10px] font-black tracking-widest text-sky-300 uppercase mb-1">
                 University Canada West
               </div>
-              <div className="text-xl font-black leading-none tracking-tight text-white group-hover:text-blue-400 transition-colors">
+              <div className="text-xl font-black leading-none tracking-tight text-white group-hover:text-sky-300 transition-colors">
                 WORKSHOP<br />PLANNER
               </div>
             </div>
@@ -116,9 +116,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Navigation list */}
-      <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto custom-scrollbar">
+      <nav className="flex-1 py-4 px-3 space-y-1.5 overflow-y-auto custom-scrollbar">
         {!collapsed && (
-          <div className="px-3 pb-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+          <div className="px-3 pb-2 text-[10px] font-black uppercase tracking-[0.2em] text-sky-200/60">
             Navigation
           </div>
         )}
@@ -132,24 +132,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
               key={item.id}
               onClick={() => onNavigate(item.id)}
               title={collapsed ? item.label : undefined}
-              className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-lg text-xs font-bold transition-all group relative cursor-pointer ${
+              className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-bold transition-all group relative cursor-pointer ${
                 isActive
-                  ? 'bg-white/10 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-[#004270] text-white shadow-xs border border-sky-400/30'
+                  : 'text-slate-200 hover:text-white hover:bg-white/10'
               }`}
             >
-              {/* Dot indicator from Bold Typography theme */}
+              {/* Dot indicator */}
               <div
                 className={`w-2 h-2 rounded-full shrink-0 transition-colors ${
                   isActive
-                    ? 'bg-blue-500 ring-2 ring-blue-500/30'
-                    : 'bg-transparent border border-slate-700 group-hover:border-slate-500'
+                    ? 'bg-sky-400 ring-2 ring-sky-300/40'
+                    : 'bg-transparent border border-slate-400/50 group-hover:border-slate-300'
                 }`}
               />
 
               <Icon
                 className={`w-4 h-4 shrink-0 transition-transform ${
-                  isActive ? 'text-blue-400' : 'text-slate-500 group-hover:text-slate-300'
+                  isActive ? 'text-sky-300' : 'text-slate-300 group-hover:text-white'
                 }`}
               />
 
@@ -160,8 +160,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <span
                       className={`text-[9px] font-black tracking-wider px-1.5 py-0.5 rounded uppercase ${
                         isActive
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-purple-900/60 text-purple-300 border border-purple-700/50'
+                          ? 'bg-sky-500 text-white'
+                          : 'bg-white/15 text-sky-200 border border-white/20'
                       }`}
                     >
                       {item.badge}
@@ -175,11 +175,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* User / Logout Footer */}
-      <div className="p-4 sm:p-6 mt-auto border-t border-white/5 bg-slate-950">
+      <div className="p-4 sm:p-5 mt-auto border-t border-[#00385F]/60 bg-[#001f35]">
         {!collapsed ? (
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-sm">
+              <div className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-xs shrink-0 shadow-xs ring-2 ring-sky-400/30">
                 {userProfile?.displayName
                   ? userProfile.displayName
                       .split(' ')
@@ -193,7 +193,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span className="text-xs font-bold text-white truncate">
                   {userProfile?.displayName || 'Administrator'}
                 </span>
-                <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold truncate">
+                <span className="text-[10px] uppercase tracking-wider text-sky-300/80 font-bold truncate">
                   {isAdmin ? 'Administrator' : 'Developer'}
                 </span>
               </div>
@@ -201,7 +201,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               onClick={handleLogout}
               title="Sign Out"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-white/5 transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-slate-300 hover:text-rose-400 hover:bg-white/10 transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -210,7 +210,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button
             onClick={handleLogout}
             title="Sign Out"
-            className="w-full flex justify-center p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-white/5 transition-colors cursor-pointer"
+            className="w-full flex justify-center p-2 rounded-lg text-slate-300 hover:text-rose-400 hover:bg-white/10 transition-colors cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
           </button>

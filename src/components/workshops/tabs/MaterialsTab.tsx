@@ -597,10 +597,10 @@ export const MaterialsTab: React.FC<MaterialsTabProps> = ({
                     className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
                       selectedFile && !isUploading
                         ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/35 ring-4 ring-orange-300 ring-offset-2 ring-offset-white scale-[1.02] active:scale-95'
-                        : 'bg-slate-950 hover:bg-slate-800 text-white shadow-sm disabled:opacity-40 disabled:cursor-not-allowed'
+                        : 'bg-[#002B49] hover:bg-[#003d66] text-white shadow-xs disabled:opacity-40 disabled:cursor-not-allowed'
                     }`}
                   >
-                    <UploadCloud className={`w-4 h-4 ${selectedFile && !isUploading ? 'text-white' : 'text-amber-400'}`} />
+                    <UploadCloud className={`w-4 h-4 ${selectedFile && !isUploading ? 'text-white' : 'text-amber-300'}`} />
                     <span>{isUploading ? 'Uploading Document...' : 'Attach File to Workshop'}</span>
                   </button>
                 </div>
@@ -632,7 +632,7 @@ export const MaterialsTab: React.FC<MaterialsTabProps> = ({
                       onClick={() => setSelectedCategoryFilter(cat as any)}
                       className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider whitespace-nowrap cursor-pointer transition-colors ${
                         selectedCategoryFilter === cat
-                          ? 'bg-slate-950 text-white'
+                          ? 'bg-[#002B49] text-white'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
                     >
