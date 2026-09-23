@@ -113,6 +113,7 @@ export const MaterialsTab: React.FC<MaterialsTabProps> = ({
   const [subTab, setSubTab] = useState<'files' | 'content' | 'checklist'>('files');
 
   // File Upload State
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -463,6 +464,11 @@ export const MaterialsTab: React.FC<MaterialsTabProps> = ({
 
               {/* Drag and Drop Zone */}
               <div
+                onClick={() => {
+                  if (!selectedFile) {
+                    fileInputRef.current?.click();
+                  }
+                }}
                 onDragOver={(e) => {
                   e.preventDefault();
                   setIsDragging(true);
@@ -470,51 +476,73 @@ export const MaterialsTab: React.FC<MaterialsTabProps> = ({
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={handleDrop}
                 className={`border-2 border-dashed rounded-xl p-5 text-center transition-all ${
-                  isDragging
-                    ? 'border-blue-500 bg-blue-50/50'
-                    : selectedFile
+                  selectedFile
                     ? 'border-emerald-400 bg-emerald-50/30'
-                    : 'border-slate-300 bg-white hover:border-slate-400'
+                    : isDragging
+                    ? 'border-blue-500 bg-blue-50/50 cursor-copy'
+                    : 'border-slate-300 bg-white hover:border-slate-400 cursor-pointer'
                 }`}
               >
                 {selectedFile ? (
                   <div className="flex items-center justify-center gap-3">
-                    <CheckSquare className="w-5 h-5 text-emerald-600" />
-                    <div className="text-left">
-                      <div className="text-xs font-bold text-slate-900">{selectedFile.name}</div>
+                    <CheckSquare className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <div className="text-left min-w-0">
+                      <div className="text-xs font-bold text-slate-900 truncate">{selectedFile.name}</div>
                       <div className="text-[10px] text-slate-500">
                         {formatFileSize(selectedFile.size)} • Selected file ready for upload
                       </div>
                     </div>
                     <button
                       type="button"
-                      onClick={() => setSelectedFile(null)}
-                      className="ml-4 text-[10px] font-black text-rose-600 hover:underline uppercase cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fileInputRef.current?.click();
+                      }}
+                      className="ml-3 text-[10px] font-bold text-sky-700 hover:text-sky-900 hover:underline uppercase cursor-pointer"
                     >
                       Change
                     </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedFile(null);
+                      }}
+                      className="ml-1 text-[10px] font-bold text-rose-600 hover:text-rose-800 hover:underline uppercase cursor-pointer"
+                    >
+                      Remove
+                    </button>
                   </div>
                 ) : (
-                  <div className="space-y-1">
-                    <UploadCloud className="w-6 h-6 text-slate-400 mx-auto" />
+                  <div className="space-y-1.5">
+                    <UploadCloud className="w-7 h-7 text-slate-400 mx-auto" />
                     <p className="text-xs font-bold text-slate-700">
                       Drag & drop workshop documents here, or click to browse files
                     </p>
-                    <p className="text-[10px] text-slate-400">
-                      Attach lecture presentations, case study prompts, sample datasets, or instructor rubrics.
+                    <p className="text-[10px] text-slate-400 max-w-md mx-auto">
+                      Attach lecture presentations, case study prompts, HTML exercises, sample datasets, or instructor rubrics.
                     </p>
                     <input
+                      ref={fileInputRef}
                       type="file"
                       id="workshop-file-input"
-                      onChange={handleFileSelect}
+                      onChange={(e) => {
+                        handleFileSelect(e);
+                        e.target.value = '';
+                      }}
                       className="hidden"
                     />
-                    <label
-                      htmlFor="workshop-file-input"
-                      className="inline-block mt-2 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold cursor-pointer transition-colors"
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fileInputRef.current?.click();
+                      }}
+                      className="inline-flex items-center gap-1.5 mt-2 px-3.5 py-1.5 rounded-lg bg-[#002B49] hover:bg-[#003d66] text-white text-[11px] font-bold cursor-pointer transition-colors shadow-xs"
                     >
-                      Select File
-                    </label>
+                      <UploadCloud className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Select File</span>
+                    </button>
                   </div>
                 )}
               </div>

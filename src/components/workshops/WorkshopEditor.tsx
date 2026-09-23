@@ -978,6 +978,14 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
                 }}
                 onOpenMaterialPreview={onOpenMaterialPreview}
               />
+            ) : activeTab === 'materials' ? (
+              <MaterialsTab
+                workshop={workshop}
+                setWorkshop={setWorkshop}
+                materials={safeMaterials}
+                onOpenPreview={onOpenMaterialPreview}
+                onStagedStateChange={setHasStagedMaterialFile}
+              />
             ) : (
               <fieldset disabled={isReadOnly} className={isReadOnly ? 'pointer-events-none opacity-90' : ''}>
                 {activeTab === 'overview' && (
@@ -1010,15 +1018,6 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
                 )}
                 {activeTab === 'dimensions' && (
                   <KnowledgeDimensionsTab workshop={workshop} setWorkshop={setWorkshop} />
-                )}
-                {activeTab === 'materials' && (
-                  <MaterialsTab
-                    workshop={workshop}
-                    setWorkshop={setWorkshop}
-                    materials={safeMaterials}
-                    onOpenPreview={onOpenMaterialPreview}
-                    onStagedStateChange={setHasStagedMaterialFile}
-                  />
                 )}
                 {activeTab === 'collaborators' && (
                   <CollaboratorsTab

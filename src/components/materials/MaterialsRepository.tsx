@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   FileText,
   FileSpreadsheet,
@@ -17,11 +17,13 @@ import {
   Plus,
   Layers,
   Sparkles,
+  CheckCircle2,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { materialService } from '../../services/materialService';
 import { Material, Workshop, MaterialCategory, UserProfile } from '../../types';
+import { isUserAssignedToWorkshop } from '../../utils/workshopPermissions';
 
 interface MaterialsRepositoryProps {
   materials: Material[];
@@ -65,15 +67,17 @@ export const MaterialsRepository: React.FC<MaterialsRepositoryProps> = ({
     return safeWorkshops.filter(
       (w) =>
         w.createdBy === userId ||
+        isUserAssignedToWorkshop(w, userProfile) ||
         (Array.isArray(w.assignedDeveloperIds) && w.assignedDeveloperIds.includes(userId))
     );
-  }, [safeWorkshops, isAdmin, userId]);
+  }, [safeWorkshops, isAdmin, userId, userProfile]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<MaterialCategory | 'All'>('All');
   const [selectedWorkshop, setSelectedWorkshop] = useState<string>('all');
 
   // Quick upload modal state
+  const repoFileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -476,11 +480,48 @@ export const MaterialsRepository: React.FC<MaterialsRepositoryProps> = ({
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Select File <span className="text-rose-500">*</span>
                 </label>
+                <div
+                  onClick={() => repoFileInputRef.current?.click()}
+                  className={`border border-dashed rounded-xl p-3 flex items-center justify-between gap-3 cursor-pointer transition-colors ${
+                    uploadFile
+                      ? 'border-emerald-400 bg-emerald-50/40'
+                      : 'border-slate-300 bg-slate-50/60 hover:bg-slate-100/80 hover:border-slate-400'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {uploadFile ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    ) : (
+                      <UploadCloud className="w-5 h-5 text-slate-400 shrink-0" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-800 truncate">
+                        {uploadFile ? uploadFile.name : 'Click to browse or choose file'}
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        {uploadFile ? `${formatFileSize(uploadFile.size)} • File selected` : 'Supports PDF, Word, PPTX, Excel, HTML, Images, Audio, Video'}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      repoFileInputRef.current?.click();
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-[#002B49] hover:bg-[#003d66] text-white text-[11px] font-bold shrink-0 transition-colors shadow-2xs"
+                  >
+                    {uploadFile ? 'Change File' : 'Select File'}
+                  </button>
+                </div>
                 <input
+                  ref={repoFileInputRef}
                   type="file"
-                  required
-                  onChange={handleFileSelect}
-                  className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#002B49] file:text-white hover:file:bg-[#003d66] cursor-pointer"
+                  onChange={(e) => {
+                    handleFileSelect(e);
+                    e.target.value = '';
+                  }}
+                  className="hidden"
                 />
               </div>
 
