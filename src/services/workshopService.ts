@@ -21,6 +21,11 @@ const sanitizeWorkshop = (w: Workshop): Workshop => {
   let createdByName = w.createdByName;
   let updatedByName = w.updatedByName;
   let assignedDevelopers = w.assignedDevelopers;
+  let status = w.status;
+
+  if ((status as any) === 'Review') {
+    status = 'In Development';
+  }
 
   if (createdByName && createdByName.includes('Mohsen Ghodrat')) {
     createdByName = createdByName.replace(/Dr\.\s*Mohsen Ghodrat/gi, 'Mohsen Ghodrat').trim();
@@ -42,6 +47,7 @@ const sanitizeWorkshop = (w: Workshop): Workshop => {
 
   return {
     ...w,
+    status: status || 'In Development',
     createdByName,
     updatedByName,
     assignedDevelopers,

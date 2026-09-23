@@ -238,6 +238,99 @@ export const LoginPage: React.FC = () => {
               <ArrowRight className="w-4 h-4 text-amber-400" />
             </button>
           </form>
+
+          {/* Quick Demo Sign-in Accounts */}
+          {mode === 'signin' && (
+            <div className="mt-5 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Quick Demo Accounts
+                </span>
+                <span className="text-[9px] font-bold text-slate-400">Click to autofill & login</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('komil.mamajanov@ucanwest.ca');
+                    setPassword('123456');
+                    signInWithEmail('komil.mamajanov@ucanwest.ca', '123456');
+                  }}
+                  className="text-left p-2 rounded-xl bg-purple-50 hover:bg-purple-100/80 border border-purple-200/80 transition-all cursor-pointer"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-purple-950">Komil Mamajanov</span>
+                    <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-purple-200 text-purple-900">Admin</span>
+                  </div>
+                  <p className="text-[10px] text-purple-700 font-mono truncate">komil.mamajanov@ucanwest.ca</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('mohsen.ghodrat@ucanwest.ca');
+                    setPassword('123456');
+                    signInWithEmail('mohsen.ghodrat@ucanwest.ca', '123456');
+                  }}
+                  className="text-left p-2 rounded-xl bg-sky-50 hover:bg-sky-100/80 border border-sky-200/80 transition-all cursor-pointer"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-sky-950">Mohsen Ghodrat</span>
+                    <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-200 text-amber-900">Switchable</span>
+                  </div>
+                  <p className="text-[10px] text-sky-700 font-mono truncate">mohsen.ghodrat@ucanwest.ca</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('developer@ucanwest.ca');
+                    setPassword('123456');
+                    signInWithEmail('developer@ucanwest.ca', '123456');
+                  }}
+                  className="text-left p-2 rounded-xl bg-teal-50 hover:bg-teal-100/80 border border-teal-200/80 transition-all cursor-pointer"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-teal-950">Developer</span>
+                    <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-teal-200 text-teal-900">Developer</span>
+                  </div>
+                  <p className="text-[10px] text-teal-700 font-mono truncate">developer@ucanwest.ca</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('cheryl.thomas@ucanwest.ca');
+                    setPassword('123456');
+                    signInWithEmail('cheryl.thomas@ucanwest.ca', '123456');
+                  }}
+                  className="text-left p-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">Cheryl Thomas</span>
+                    <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-100 text-amber-900">Series Lead</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 font-mono truncate">cheryl.thomas@ucanwest.ca</p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('admin@ucanwest.ca');
+                    setPassword('admin123');
+                    signInWithEmail('admin@ucanwest.ca', 'admin123');
+                  }}
+                  className="text-left p-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer col-span-1 sm:col-span-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">Administrator (Orkhon)</span>
+                    <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-purple-100 text-purple-900">Admin</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 font-mono truncate">admin@ucanwest.ca</p>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer info */}

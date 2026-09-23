@@ -8,6 +8,7 @@ import { WorkshopList } from './components/workshops/WorkshopList';
 import { WorkshopEditor } from './components/workshops/WorkshopEditor';
 import { WorkshopPreview } from './components/workshops/WorkshopPreview';
 import { UnsavedChangesModal } from './components/workshops/UnsavedChangesModal';
+import { WorkshopQuickOverviewModal } from './components/workshops/WorkshopQuickOverviewModal';
 import { SeriesList } from './components/series/SeriesList';
 import { MaterialsRepository } from './components/materials/MaterialsRepository';
 import { MaterialPreviewModal } from './components/materials/MaterialPreviewModal';
@@ -20,6 +21,7 @@ import { userService } from './services/userService';
 import { seedService } from './services/seedService';
 
 import { Workshop, WorkshopSeries, Material, UserProfile } from './types';
+import { canUserViewFullWorkshopContent } from './utils/workshopPermissions';
 
 type ActiveView =
   | 'dashboard'
@@ -46,6 +48,7 @@ const MainApp: React.FC = () => {
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
   const [workshopViewMode, setWorkshopViewMode] = useState<'my' | 'all'>('all');
   const [selectedWorkshop, setSelectedWorkshop] = useState<Workshop | null>(null);
+  const [quickOverviewWorkshop, setQuickOverviewWorkshop] = useState<Workshop | null>(null);
   const [previewMaterial, setPreviewMaterial] = useState<Material | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
 
@@ -70,6 +73,29 @@ const MainApp: React.FC = () => {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
+
+  // Stable dirty change handler to prevent re-render cascading
+  const handleDirtyChange = React.useCallback(
+    (
+      dirty: boolean,
+      summary: { prefix: string; code: string; title: string; isNew: boolean }
+    ) => {
+      setIsWorkshopDirty((prev) => (prev !== dirty ? dirty : prev));
+      setWorkshopDraftSummary((prev) => {
+        if (
+          prev &&
+          prev.prefix === summary.prefix &&
+          prev.code === summary.code &&
+          prev.title === summary.title &&
+          prev.isNew === summary.isNew
+        ) {
+          return prev;
+        }
+        return summary;
+      });
+    },
+    []
+  );
 
   // Load Firestore data with real-time listeners and initial sample data seeding if needed
   useEffect(() => {
@@ -162,6 +188,10 @@ const MainApp: React.FC = () => {
   };
 
   const handleOpenEditWorkshop = (workshop: Workshop) => {
+    if (!canUserViewFullWorkshopContent(workshop, userProfile, series)) {
+      setQuickOverviewWorkshop(workshop);
+      return;
+    }
     if (activeView === 'workshop-editor' && isWorkshopDirty && selectedWorkshop?.id !== workshop.id) {
       setPendingAction({ type: 'edit', workshop });
       return;
@@ -173,6 +203,10 @@ const MainApp: React.FC = () => {
   };
 
   const handleOpenPreviewWorkshop = (workshop: Workshop) => {
+    if (!canUserViewFullWorkshopContent(workshop, userProfile, series)) {
+      setQuickOverviewWorkshop(workshop);
+      return;
+    }
     if (activeView === 'workshop-editor' && isWorkshopDirty) {
       setPendingAction({ type: 'preview', workshop });
       return;
@@ -389,10 +423,7 @@ const MainApp: React.FC = () => {
             setActiveView('workshop-preview');
           }}
           onOpenMaterialPreview={(mat) => setPreviewMaterial(mat)}
-          onDirtyChange={(dirty, summary) => {
-            setIsWorkshopDirty(dirty);
-            setWorkshopDraftSummary(summary);
-          }}
+          onDirtyChange={handleDirtyChange}
           onWorkshopSaved={(savedWorkshop) => {
             setSelectedWorkshop(savedWorkshop);
           }}
@@ -472,6 +503,15 @@ const MainApp: React.FC = () => {
         onSaveAndContinue={handleSaveAndContinue}
         isSaving={isModalSaving}
       />
+
+      {/* Workshop Quick Overview Modal for restricted outlines */}
+      {quickOverviewWorkshop && (
+        <WorkshopQuickOverviewModal
+          workshop={quickOverviewWorkshop}
+          seriesList={series}
+          onClose={() => setQuickOverviewWorkshop(null)}
+        />
+      )}
     </AppLayout>
   );
 };

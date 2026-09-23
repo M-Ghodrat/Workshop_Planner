@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Save,
   Eye,
@@ -19,12 +19,14 @@ import {
   Layers,
   Check,
   ListOrdered,
+  Lock,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { workshopService } from '../../services/workshopService';
 import { materialService } from '../../services/materialService';
 import { Workshop, WorkshopSeries, WorkshopStatus, Material, UserProfile } from '../../types';
+import { canUserModifyWorkshop } from '../../utils/workshopPermissions';
 
 import { OverviewTab } from './tabs/OverviewTab';
 import { LearningOutcomesTab } from './tabs/LearningOutcomesTab';
@@ -139,7 +141,15 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
   saveRef,
   resetDraftRef,
 }) => {
-  const { userProfile, isAdmin } = useAuth();
+  const {
+    userProfile,
+    isAdmin,
+    isProgramAdmin,
+    isProjectLead,
+    isWorkshopLead,
+    canChangeStatus,
+    canInitiateWorkshop,
+  } = useAuth();
   const { success, error } = useToast();
 
   const safeMaterials = Array.isArray(allMaterials) ? allMaterials : [];
@@ -197,6 +207,20 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
     normalizeWorkshopForComparison(createInitialState())
   );
 
+  const isLockedForCurrentUser = workshop.status === 'Approved' && !canChangeStatus;
+
+  // Determine if user has write access to this workshop
+  const canEditWorkshop = React.useMemo(() => {
+    if (!userProfile) return false;
+    if (isProgramAdmin) return true;
+    if (isProjectLead) return false;
+    if (!isEditing) return canInitiateWorkshop;
+
+    return canUserModifyWorkshop(workshop, userProfile, allSeries);
+  }, [userProfile, isProgramAdmin, isProjectLead, isEditing, canInitiateWorkshop, workshop, allSeries]);
+
+  const isReadOnly = !canEditWorkshop || isLockedForCurrentUser;
+
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [focusedTopicId, setFocusedTopicId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -237,17 +261,23 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty]);
 
+  // Keep ref for onDirtyChange to prevent re-render loops
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  useEffect(() => {
+    onDirtyChangeRef.current = onDirtyChange;
+  }, [onDirtyChange]);
+
   // Notify parent component about dirty status
   useEffect(() => {
-    if (onDirtyChange) {
-      onDirtyChange(isDirty, {
+    if (onDirtyChangeRef.current) {
+      onDirtyChangeRef.current(isDirty, {
         prefix: workshop.prefix,
         code: workshop.code,
         title: workshop.title,
         isNew: !isEditing,
       });
     }
-  }, [isDirty, workshop.prefix, workshop.code, workshop.title, isEditing, onDirtyChange]);
+  }, [isDirty, workshop.prefix, workshop.code, workshop.title, isEditing]);
 
   // Expose resetDraftRef to parent
   useEffect(() => {
@@ -300,6 +330,10 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
   };
 
   const handleSave = async (silent = false): Promise<boolean> => {
+    if (isLockedForCurrentUser) {
+      error('Workshop Locked', 'This workshop has been Approved and is locked. Only Workshop Leads can make changes.');
+      return false;
+    }
     if (!validateForm() || !userProfile) return false;
 
     setIsSaving(true);
@@ -582,17 +616,23 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
               <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                 Status:
               </span>
-              <select
-                value={workshop.status}
-                onChange={(e) =>
-                  setWorkshop((prev) => ({ ...prev, status: e.target.value as WorkshopStatus }))
-                }
-                className="px-3 py-1.5 bg-amber-50 text-amber-900 border border-amber-300 rounded-full text-[11px] font-black uppercase tracking-wider focus:outline-hidden cursor-pointer"
-              >
-                <option value="In Development">In Development</option>
-                <option value="Review">Review</option>
-                <option value="Approved">Approved</option>
-              </select>
+              {canChangeStatus && !isReadOnly ? (
+                <select
+                  value={workshop.status}
+                  onChange={(e) =>
+                    setWorkshop((prev) => ({ ...prev, status: e.target.value as WorkshopStatus }))
+                  }
+                  className="px-3 py-1.5 bg-amber-50 text-amber-900 border border-amber-300 rounded-full text-[11px] font-black uppercase tracking-wider focus:outline-hidden cursor-pointer"
+                >
+                  <option value="In Development">In Development</option>
+                  <option value="Approved">Approved</option>
+                </select>
+              ) : (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-800 border border-slate-300 rounded-full text-[11px] font-black uppercase tracking-wider">
+                  <Lock className="w-3 h-3 text-slate-500" />
+                  <span>{workshop.status}</span>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center gap-2 mt-1">
@@ -608,15 +648,62 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
               <button
                 type="button"
                 onClick={() => handleSave(false)}
-                disabled={isSaving}
+                disabled={isSaving || isReadOnly}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#002B49] hover:bg-[#003d66] text-white text-xs font-black uppercase tracking-[0.2em] shadow-md transition-all cursor-pointer disabled:opacity-50"
+                title={isReadOnly ? 'Workshop is in read-only mode' : undefined}
               >
-                <Save className="w-3.5 h-3.5 text-amber-300" />
-                <span>{isSaving ? 'Saving...' : 'Save Outline'}</span>
+                {isLockedForCurrentUser ? (
+                  <>
+                    <Lock className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Locked (Approved)</span>
+                  </>
+                ) : isReadOnly ? (
+                  <>
+                    <Lock className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Read-Only</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-3.5 h-3.5 text-amber-300" />
+                    <span>{isSaving ? 'Saving...' : 'Save Outline'}</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
         </div>
+
+        {/* Lock Warning Banner */}
+        {isLockedForCurrentUser && (
+          <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 flex items-center gap-3">
+            <Lock className="w-5 h-5 text-amber-700 shrink-0" />
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-amber-900">
+                Workshop Approved & Locked
+              </h4>
+              <p className="text-xs text-amber-800 mt-0.5">
+                This workshop has been Approved and is now in read-only mode for developers. Only Workshop Leads and Program Administrators can modify or unlock its status.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Series Read-Only Access Banner */}
+        {isReadOnly && !isLockedForCurrentUser && (
+          <div className="p-4 rounded-xl bg-sky-50 border border-sky-300 text-sky-950 flex items-center gap-3">
+            <Lock className="w-5 h-5 text-[#002B49] shrink-0" />
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[#002B49]">
+                Read-Only Access
+              </h4>
+              <p className="text-xs text-slate-700 mt-0.5">
+                {workshop.seriesName
+                  ? `This workshop belongs to the "${workshop.seriesName}" series. You have read-only viewing permissions.`
+                  : 'You have read-only viewing permissions for this workshop outline.'}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Mobile/Tablet Table of Contents Dropdown Selector */}
         <div className="lg:hidden pt-4 border-t border-slate-200">
@@ -881,54 +968,7 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
 
           {/* Active Tab Workspace Content */}
           <div className="animate-in fade-in duration-150">
-            {activeTab === 'overview' && (
-              <OverviewTab
-                workshop={workshop}
-                setWorkshop={setWorkshop}
-                allWorkshops={safeWorkshops}
-                allSeries={availableSeries}
-              />
-            )}
-            {activeTab === 'outcomes' && (
-              <LearningOutcomesTab workshop={workshop} setWorkshop={setWorkshop} />
-            )}
-            {activeTab === 'timeline' && (
-              <TimelineTab
-                workshop={workshop}
-                setWorkshop={setWorkshop}
-                focusedTopicId={focusedTopicId}
-              />
-            )}
-            {activeTab === 'activities' && (
-              <ActivitiesTab workshop={workshop} setWorkshop={setWorkshop} />
-            )}
-            {activeTab === 'resources' && (
-              <ResourcesTab
-                workshop={workshop}
-                setWorkshop={setWorkshop}
-                allMaterials={safeMaterials}
-              />
-            )}
-            {activeTab === 'dimensions' && (
-              <KnowledgeDimensionsTab workshop={workshop} setWorkshop={setWorkshop} />
-            )}
-            {activeTab === 'materials' && (
-              <MaterialsTab
-                workshop={workshop}
-                setWorkshop={setWorkshop}
-                materials={safeMaterials}
-                onOpenPreview={onOpenMaterialPreview}
-                onStagedStateChange={setHasStagedMaterialFile}
-              />
-            )}
-            {activeTab === 'collaborators' && (
-              <CollaboratorsTab
-                workshop={workshop}
-                setWorkshop={setWorkshop}
-                allUsers={safeUsers}
-              />
-            )}
-            {activeTab === 'full-overview' && (
+            {activeTab === 'full-overview' ? (
               <FullOverviewTab
                 workshop={workshop}
                 materials={safeMaterials}
@@ -938,6 +978,56 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
                 }}
                 onOpenMaterialPreview={onOpenMaterialPreview}
               />
+            ) : (
+              <fieldset disabled={isReadOnly} className={isReadOnly ? 'pointer-events-none opacity-90' : ''}>
+                {activeTab === 'overview' && (
+                  <OverviewTab
+                    workshop={workshop}
+                    setWorkshop={setWorkshop}
+                    allWorkshops={safeWorkshops}
+                    allSeries={availableSeries}
+                  />
+                )}
+                {activeTab === 'outcomes' && (
+                  <LearningOutcomesTab workshop={workshop} setWorkshop={setWorkshop} />
+                )}
+                {activeTab === 'timeline' && (
+                  <TimelineTab
+                    workshop={workshop}
+                    setWorkshop={setWorkshop}
+                    focusedTopicId={focusedTopicId}
+                  />
+                )}
+                {activeTab === 'activities' && (
+                  <ActivitiesTab workshop={workshop} setWorkshop={setWorkshop} />
+                )}
+                {activeTab === 'resources' && (
+                  <ResourcesTab
+                    workshop={workshop}
+                    setWorkshop={setWorkshop}
+                    allMaterials={safeMaterials}
+                  />
+                )}
+                {activeTab === 'dimensions' && (
+                  <KnowledgeDimensionsTab workshop={workshop} setWorkshop={setWorkshop} />
+                )}
+                {activeTab === 'materials' && (
+                  <MaterialsTab
+                    workshop={workshop}
+                    setWorkshop={setWorkshop}
+                    materials={safeMaterials}
+                    onOpenPreview={onOpenMaterialPreview}
+                    onStagedStateChange={setHasStagedMaterialFile}
+                  />
+                )}
+                {activeTab === 'collaborators' && (
+                  <CollaboratorsTab
+                    workshop={workshop}
+                    setWorkshop={setWorkshop}
+                    allUsers={safeUsers}
+                  />
+                )}
+              </fieldset>
             )}
           </div>
 
@@ -976,11 +1066,20 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
               <button
                 type="button"
                 onClick={() => handleSave(false)}
-                disabled={isSaving}
+                disabled={isSaving || isReadOnly}
                 className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#002B49] hover:bg-[#003d66] text-white text-xs font-black uppercase tracking-[0.2em] shadow-md transition-all cursor-pointer disabled:opacity-50"
               >
-                <Save className="w-4 h-4 text-amber-300" />
-                <span>{isSaving ? 'Saving...' : 'Save Workshop'}</span>
+                {isReadOnly ? (
+                  <>
+                    <Lock className="w-4 h-4 text-amber-300" />
+                    <span>{isLockedForCurrentUser ? 'Locked (Approved)' : 'Read-Only Mode'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 text-amber-300" />
+                    <span>{isSaving ? 'Saving...' : 'Save Workshop'}</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

@@ -14,6 +14,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { ROLE_LABELS } from '../../types';
 
 interface SidebarProps {
   currentView: string;
@@ -30,7 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setCollapsed,
   onLogoutRequest,
 }) => {
-  const { userProfile, isAdmin, logout } = useAuth();
+  const { userProfile, isAdmin, canInitiateWorkshop, logout } = useAuth();
 
   const handleLogout = () => {
     if (onLogoutRequest) {
@@ -45,46 +46,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'dashboard',
       label: 'Dashboard',
       icon: LayoutDashboard,
-      roles: ['administrator', 'developer'],
+      visible: true,
       description: 'Overview & Statistics',
     },
     {
       id: 'my-workshops',
       label: isAdmin ? 'All Workshops' : 'My Workshops',
       icon: BookOpen,
-      roles: ['administrator', 'developer'],
+      visible: true,
       description: isAdmin ? 'Manage curriculum catalog' : 'Assigned & authored workshops',
     },
     {
       id: 'series',
       label: 'Workshop Series',
       icon: Layers,
-      roles: ['administrator', 'developer'],
+      visible: true,
       description: 'Curriculum tracks',
     },
     {
       id: 'create-workshop',
       label: 'Create Workshop',
       icon: PlusCircle,
-      roles: ['developer'],
+      visible: canInitiateWorkshop,
       description: 'New 2-hour outline',
     },
     {
       id: 'users',
       label: 'Users / Developers',
       icon: Users,
-      roles: ['administrator'],
+      visible: isAdmin,
       badge: 'Admin',
       description: 'Manage faculty & roles',
     },
   ];
 
-  const visibleItems = navItems.filter((item) => {
-    if (item.id === 'create-workshop' && isAdmin) {
-      return false;
-    }
-    return !item.roles || (userProfile && item.roles.includes(userProfile.role)) || isAdmin;
-  });
+  const visibleItems = navItems.filter((item) => item.visible);
+
+  const roleDisplay = userProfile?.role ? (ROLE_LABELS[userProfile.role] || userProfile.role) : 'Faculty Member';
 
   return (
     <aside
@@ -187,14 +185,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       .join('')
                       .slice(0, 2)
                       .toUpperCase()
-                  : (isAdmin ? 'AD' : 'FM')}
+                  : 'FM'}
               </div>
               <div className="flex flex-col min-w-0 text-left">
                 <span className="text-xs font-bold text-white truncate">
-                  {userProfile?.displayName || 'Administrator'}
+                  {userProfile?.displayName || 'Faculty Member'}
                 </span>
                 <span className="text-[10px] uppercase tracking-wider text-sky-300/80 font-bold truncate">
-                  {isAdmin ? 'Administrator' : 'Developer'}
+                  {roleDisplay}
                 </span>
               </div>
             </div>

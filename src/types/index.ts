@@ -1,4 +1,17 @@
-export type UserRole = 'administrator' | 'developer';
+export type UserRole =
+  | 'administrator' // Program Administrator (Orkhon Erdenebaatar)
+  | 'project_lead' // Project Lead (Komil Mamajanov)
+  | 'workshop_lead' // Workshop Lead (Mohsen Ghodrat, Cheryl Thomas, Amirhossein Zaji)
+  | 'academic_affairs' // Academic Affairs (Amy Hua)
+  | 'developer'; // Faculty Developer
+
+export const ROLE_LABELS: Record<UserRole, string> = {
+  administrator: 'Program Administrator',
+  project_lead: 'Project Lead',
+  workshop_lead: 'Workshop Lead',
+  academic_affairs: 'Academic Affairs',
+  developer: 'Developer',
+};
 
 export interface UserProfile {
   id: string;
@@ -14,7 +27,6 @@ export interface UserProfile {
 
 export type WorkshopStatus =
   | 'In Development'
-  | 'Review'
   | 'Approved';
 
 export type WorkshopLevel = 'Foundation' | 'Practitioner' | 'Professional';
@@ -144,6 +156,9 @@ export interface WorkshopSeries {
   description: string;
   coreFocus: string;
   prefix?: string;
+  leadId?: string;
+  leadName?: string;
+  leadEmail?: string;
   workshopCount?: number;
   workshopIds: string[];
   status: 'Active' | 'Archived' | 'Draft';

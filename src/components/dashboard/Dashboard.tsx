@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   BookOpen,
   FolderKanban,
@@ -18,9 +18,17 @@ import {
   Edit,
   Tag,
   User,
+  ListChecks,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Workshop, WorkshopSeries, Material, UserProfile } from '../../types';
+import { calculateWorkshopProgress } from '../../utils/workshopProgress';
+import {
+  isUserAssignedToWorkshop,
+  isSeriesAssignedToDeveloper,
+  canUserModifyWorkshop,
+} from '../../utils/workshopPermissions';
+import { WorkshopProgressModal } from '../workshops/WorkshopProgressModal';
 
 interface DashboardProps {
   workshops: Workshop[];
@@ -41,7 +49,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onOpenCreateWorkshop,
   onSelectWorkshop,
 }) => {
-  const { userProfile, isAdmin } = useAuth();
+  const { userProfile, isAdmin, canInitiateWorkshop } = useAuth();
+  const [inspectingProgressWorkshop, setInspectingProgressWorkshop] = useState<Workshop | null>(null);
   const userId = userProfile?.id || '';
 
   const safeWorkshops = Array.isArray(workshops) ? workshops : [];
@@ -52,25 +61,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
   // Scoped workshops for developer vs admin
   const accessibleWorkshops = useMemo(() => {
     if (isAdmin) return safeWorkshops;
-    return safeWorkshops.filter(
-      (w) =>
-        w.createdBy === userId ||
-        (Array.isArray(w.assignedDeveloperIds) && w.assignedDeveloperIds.includes(userId))
-    );
-  }, [safeWorkshops, isAdmin, userId]);
+    return safeWorkshops.filter((w) => isUserAssignedToWorkshop(w, userProfile));
+  }, [safeWorkshops, isAdmin, userProfile]);
 
   // Scoped series for developer vs admin
   const accessibleSeries = useMemo(() => {
     if (isAdmin) return safeSeries;
-    const devSeriesIds = new Set(accessibleWorkshops.map((w) => w.seriesId).filter(Boolean));
-    return safeSeries.filter((s) => devSeriesIds.has(s.id) || s.createdBy === userId);
-  }, [safeSeries, accessibleWorkshops, isAdmin, userId]);
+    return safeSeries.filter(
+      (s) => s.createdBy === userId || isSeriesAssignedToDeveloper(s, safeWorkshops, userProfile)
+    );
+  }, [safeSeries, safeWorkshops, isAdmin, userId, userProfile]);
 
   // Metrics calculation
   const myAssignedWorkshops = accessibleWorkshops;
   const myCreatedWorkshops = accessibleWorkshops.filter((w) => w.createdBy === userId);
   const inDevWorkshops = accessibleWorkshops.filter((w) => w.status === 'In Development');
-  const reviewWorkshops = accessibleWorkshops.filter((w) => w.status === 'Review');
   const approvedWorkshops = accessibleWorkshops.filter((w) => w.status === 'Approved');
 
   const recentWorkshops = [...accessibleWorkshops]
@@ -84,7 +89,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
   // Status breakdown
   const statusCounts: Record<string, number> = {
     'In Development': 0,
-    Review: 0,
     Approved: 0,
   };
   accessibleWorkshops.forEach((w) => {
@@ -95,7 +99,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   const statusColors: Record<string, { bg: string; text: string; border: string }> = {
     'In Development': { bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-300' },
-    Review: { bg: 'bg-blue-50', text: 'text-blue-800', border: 'border-blue-300' },
     Approved: { bg: 'bg-emerald-50', text: 'text-emerald-800', border: 'border-emerald-300' },
   };
 
@@ -115,7 +118,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-3 shrink-0">
-            {!isAdmin && (
+            {canInitiateWorkshop && (
               <button
                 onClick={onOpenCreateWorkshop}
                 className="flex items-center gap-2 px-5 py-3 rounded-xl bg-white hover:bg-sky-50 text-[#002B49] font-black uppercase tracking-wider text-xs shadow-md transition-all cursor-pointer"
@@ -137,8 +140,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Metrics Section */}
       {isAdmin ? (
-        /* Administrator Metrics Grid */
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        /* Administrator Metrics Grid - No Materials & Assets */
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -189,27 +192,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
               Active contributors
             </div>
           </div>
-
-          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Materials & Assets
-              </span>
-              <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-900 flex items-center justify-center font-black">
-                <FileText className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="text-3xl sm:text-4xl font-black text-slate-950 mt-2 tracking-tight">
-              {safeMaterials.length}
-            </div>
-            <div className="text-[11px] font-bold text-slate-500 mt-1 uppercase tracking-wider">
-              Slides & case files
-            </div>
-          </div>
         </div>
       ) : (
         /* Developer Metrics Grid */
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
           <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
               Assigned
@@ -238,16 +224,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
               {myAssignedWorkshops.filter((w) => w.status === 'In Development').length}
             </div>
             <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Active</span>
-          </div>
-
-          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
-              In Review
-            </span>
-            <div className="text-3xl font-black text-blue-600 mt-1 tracking-tight">
-              {myAssignedWorkshops.filter((w) => w.status === 'Review').length}
-            </div>
-            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Review stage</span>
           </div>
 
           <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
@@ -379,6 +355,24 @@ export const Dashboard: React.FC<DashboardProps> = ({
                             <span className="text-slate-400 text-[10px]">
                               {new Date(w.updatedAt || Date.now()).toLocaleDateString()}
                             </span>
+
+                            {/* Admin Development Steps Progress Pill */}
+                            {isAdmin && (() => {
+                              const progress = calculateWorkshopProgress(w);
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setInspectingProgressWorkshop(w);
+                                  }}
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-black uppercase tracking-wider cursor-pointer ${progress.readinessColor.bg} ${progress.readinessColor.text} ${progress.readinessColor.border} hover:opacity-90 transition-opacity`}
+                                >
+                                  <ListChecks className="w-3 h-3" />
+                                  <span>{progress.completedCount}/8 Steps Done</span>
+                                </button>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -411,7 +405,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <span>
               Showing {recentWorkshops.length} of {accessibleWorkshops.length} workshops
             </span>
-            {!isAdmin && (
+            {canInitiateWorkshop && (
               <button
                 onClick={() => onNavigate('create-workshop')}
                 className="text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
@@ -486,6 +480,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Progress Inspector Modal */}
+      {inspectingProgressWorkshop && (
+        <WorkshopProgressModal
+          workshop={inspectingProgressWorkshop}
+          onClose={() => setInspectingProgressWorkshop(null)}
+          onOpenWorkshop={onSelectWorkshop}
+        />
+      )}
     </div>
   );
 };

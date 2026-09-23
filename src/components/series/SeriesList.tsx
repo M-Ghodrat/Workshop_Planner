@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Layers,
   Plus,
@@ -12,11 +12,23 @@ import {
   Sparkles,
   Search,
   User,
+  Lock,
+  Shield,
+  FileText,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { seriesService } from '../../services/seriesService';
 import { WorkshopSeries, Workshop } from '../../types';
+import {
+  isUserAssignedToWorkshop,
+  isWorkshopInSeries,
+  isSeriesAssignedToDeveloper,
+  canUserModifySeries,
+  canUserModifyWorkshop,
+  canUserViewFullWorkshopContent,
+} from '../../utils/workshopPermissions';
+import { WorkshopQuickOverviewModal } from '../workshops/WorkshopQuickOverviewModal';
 
 interface SeriesListProps {
   series: WorkshopSeries[];
@@ -31,7 +43,16 @@ export const SeriesList: React.FC<SeriesListProps> = ({
   onSelectWorkshop,
   onOpenCreateWorkshop,
 }) => {
-  const { userProfile, isAdmin } = useAuth();
+  const {
+    userProfile,
+    isAdmin,
+    isProgramAdmin,
+    isProjectLead,
+    isWorkshopLead,
+    canCreateSeries,
+    canEditSeries,
+    canInitiateWorkshop,
+  } = useAuth();
   const { success, error } = useToast();
 
   const safeSeries = Array.isArray(series) ? series : [];
@@ -39,26 +60,29 @@ export const SeriesList: React.FC<SeriesListProps> = ({
 
   const userId = userProfile?.id || '';
 
-  // For developers, only consider workshops they created or are assigned to
+  // For developers, consider workshops they created or are assigned to
   const accessibleWorkshops = useMemo(() => {
-    if (isAdmin) return safeWorkshops;
-    return safeWorkshops.filter(
-      (w) =>
-        w.createdBy === userId ||
-        (Array.isArray(w.assignedDeveloperIds) && w.assignedDeveloperIds.includes(userId))
-    );
-  }, [safeWorkshops, isAdmin, userId]);
+    if (isAdmin || isWorkshopLead || canEditSeries) return safeWorkshops;
+    return safeWorkshops.filter((w) => isUserAssignedToWorkshop(w, userProfile));
+  }, [safeWorkshops, isAdmin, isWorkshopLead, canEditSeries, userProfile]);
 
-  // For developers, only show series that contain their workshops or that they created
+  // Workshop leads and admins see all series.
+  // Once a developer is assigned to any workshop, the corresponding workshop series is also available (as read-only).
   const scopedSeries = useMemo(() => {
-    if (isAdmin) return safeSeries;
-    const devSeriesIds = new Set(accessibleWorkshops.map((w) => w.seriesId).filter(Boolean));
-    return safeSeries.filter((s) => devSeriesIds.has(s.id) || s.createdBy === userId);
-  }, [safeSeries, accessibleWorkshops, isAdmin, userId]);
+    if (isAdmin || isWorkshopLead || canEditSeries) return safeSeries;
+    return safeSeries.filter(
+      (s) => s.createdBy === userId || isSeriesAssignedToDeveloper(s, safeWorkshops, userProfile)
+    );
+  }, [safeSeries, safeWorkshops, isAdmin, isWorkshopLead, canEditSeries, userId, userProfile]);
+
+  const canModifyThisSeries = (s: WorkshopSeries | null): boolean => {
+    return canUserModifySeries(s, userProfile);
+  };
 
   const [searchTerm, setSearchTerm] = useState('');
   const [editingSeries, setEditingSeries] = useState<WorkshopSeries | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [overviewWorkshop, setOverviewWorkshop] = useState<Workshop | null>(null);
   const [selectedSeriesForView, setSelectedSeriesForView] = useState<WorkshopSeries | null>(
     scopedSeries[0] || null
   );
@@ -176,13 +200,15 @@ export const SeriesList: React.FC<SeriesListProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={handleOpenCreate}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#002B49] hover:bg-[#003d66] text-white text-xs font-bold shadow-md transition-all cursor-pointer"
-        >
-          <Plus className="w-4 h-4 text-amber-400" />
-          <span>New Workshop Series</span>
-        </button>
+        {canCreateSeries && (
+          <button
+            onClick={handleOpenCreate}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#002B49] hover:bg-[#003d66] text-white text-xs font-bold shadow-md transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4 text-amber-400" />
+            <span>New Workshop Series</span>
+          </button>
+        )}
       </div>
 
       {/* Search Bar */}
@@ -216,7 +242,11 @@ export const SeriesList: React.FC<SeriesListProps> = ({
           ) : (
             filteredSeries.map((s) => {
               const isSelected = selectedSeriesForView?.id === s.id;
-              const seriesWorkshops = accessibleWorkshops.filter((w) => w.seriesId === s.id);
+              const seriesWorkshops = safeWorkshops.filter((w) => isWorkshopInSeries(w, s));
+              const myWorkshopsCount = seriesWorkshops.filter((w) =>
+                isUserAssignedToWorkshop(w, userProfile)
+              ).length;
+              const canEditThis = canModifyThisSeries(s);
 
               return (
                 <div
@@ -252,23 +282,38 @@ export const SeriesList: React.FC<SeriesListProps> = ({
                   </p>
 
                   <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100 text-xs">
-                    <span className="font-semibold text-slate-500 flex items-center gap-1">
-                      <BookOpen className="w-3.5 h-3.5 text-sky-600" />
-                      <span>{seriesWorkshops.length} workshops</span>
-                    </span>
+                    <div className="flex items-center gap-2 text-slate-500">
+                      <span className="font-semibold flex items-center gap-1">
+                        <BookOpen className="w-3.5 h-3.5 text-sky-600" />
+                        <span>{seriesWorkshops.length} workshops</span>
+                      </span>
+                      {myWorkshopsCount > 0 && (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                          {myWorkshopsCount} assigned
+                        </span>
+                      )}
+                    </div>
 
                     <div
                       className="flex items-center gap-1"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <button
-                        onClick={() => handleOpenEdit(s)}
-                        className="p-1 text-slate-400 hover:text-slate-700 rounded-md cursor-pointer"
-                        title="Edit Series"
-                      >
-                        <Edit className="w-3.5 h-3.5" />
-                      </button>
-                      {isAdmin && (
+                      {!canEditThis && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-sky-50 text-sky-900 border border-sky-200 flex items-center gap-1">
+                          <Lock className="w-2.5 h-2.5 text-sky-700" />
+                          <span>Read-Only</span>
+                        </span>
+                      )}
+                      {canEditSeries && canEditThis && (
+                        <button
+                          onClick={() => handleOpenEdit(s)}
+                          className="p-1 text-slate-400 hover:text-slate-700 rounded-md cursor-pointer"
+                          title="Edit Series"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {canCreateSeries && canEditThis && (
                         <button
                           onClick={() => handleDeleteSeries(s)}
                           className="p-1 text-slate-400 hover:text-rose-600 rounded-md cursor-pointer"
@@ -292,13 +337,19 @@ export const SeriesList: React.FC<SeriesListProps> = ({
               {/* Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span className="px-2 py-0.5 rounded-md bg-[#002B49] text-white text-xs font-extrabold">
                       {selectedSeriesForView.prefix || 'UCW'}
                     </span>
                     <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                       {selectedSeriesForView.status}
                     </span>
+                    {!canModifyThisSeries(selectedSeriesForView) && (
+                      <span className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-0.5 rounded-lg bg-sky-100/90 text-[#002B49] border border-sky-200">
+                        <Shield className="w-3.5 h-3.5 text-[#002B49]" />
+                        Read-Only Series
+                      </span>
+                    )}
                   </div>
                   <h3 className="text-xl font-extrabold text-slate-900">
                     {selectedSeriesForView.name}
@@ -306,22 +357,37 @@ export const SeriesList: React.FC<SeriesListProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleOpenEdit(selectedSeriesForView)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 cursor-pointer"
-                  >
-                    <Edit className="w-3.5 h-3.5" />
-                    <span>Edit Series Info</span>
-                  </button>
-                  <button
-                    onClick={onOpenCreateWorkshop}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#002B49] text-white text-xs font-semibold hover:bg-sky-900 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Add Workshop</span>
-                  </button>
+                  {canEditSeries && canModifyThisSeries(selectedSeriesForView) && (
+                    <button
+                      onClick={() => handleOpenEdit(selectedSeriesForView)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 cursor-pointer"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                      <span>Edit Series Info</span>
+                    </button>
+                  )}
+                  {canInitiateWorkshop && canModifyThisSeries(selectedSeriesForView) && (
+                    <button
+                      onClick={onOpenCreateWorkshop}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#002B49] text-white text-xs font-semibold hover:bg-sky-900 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Add Workshop</span>
+                    </button>
+                  )}
                 </div>
               </div>
+
+              {/* Read-Only Informative Banner for Developers */}
+              {!canModifyThisSeries(selectedSeriesForView) && (
+                <div className="p-3.5 rounded-xl bg-sky-50 border border-sky-200 text-sky-950 flex items-start gap-2.5 text-xs">
+                  <Shield className="w-4 h-4 text-[#002B49] shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-[#002B49]">Read-Only Series Track:</span>{' '}
+                    This workshop series curriculum track is available in read-only mode for assigned faculty developers. You can review the complete curriculum structure below, and open your assigned workshop outlines to edit.
+                  </div>
+                </div>
+              )}
 
               {/* Core Focus & Description */}
               <div className="space-y-3 text-xs sm:text-sm">
@@ -343,99 +409,181 @@ export const SeriesList: React.FC<SeriesListProps> = ({
               </div>
 
               {/* Workshops Belonging to This Series */}
-              <div className="space-y-3 pt-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                  Workshops in this Series (
-                  {accessibleWorkshops.filter((w) => w.seriesId === selectedSeriesForView.id).length})
-                </h4>
+              {(() => {
+                const seriesWorkshops = safeWorkshops.filter((w) =>
+                  isWorkshopInSeries(w, selectedSeriesForView)
+                );
+                const assignedToMeCount = seriesWorkshops.filter((w) =>
+                  isUserAssignedToWorkshop(w, userProfile)
+                ).length;
 
-                {accessibleWorkshops.filter((w) => w.seriesId === selectedSeriesForView.id).length === 0 ? (
-                  <div className="p-8 text-center border border-dashed border-slate-200 rounded-xl text-xs text-slate-400">
-                    No workshops assigned to this series yet.
-                  </div>
-                ) : (
-                  <div className="space-y-2.5">
-                    {accessibleWorkshops
-                      .filter((w) => w.seriesId === selectedSeriesForView.id)
-                      .map((w, idx) => {
-                        const devList =
-                          w.assignedDevelopers && w.assignedDevelopers.length > 0
-                            ? w.assignedDevelopers
-                            : w.createdByName
-                            ? [{ id: w.createdBy || 'creator', name: w.createdByName, email: '' }]
-                            : [];
+                return (
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                        Workshops in this Series ({seriesWorkshops.length})
+                      </h4>
+                      {assignedToMeCount > 0 && (
+                        <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                          {assignedToMeCount} assigned to you
+                        </span>
+                      )}
+                    </div>
 
-                        return (
-                          <div
-                            key={w.id}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-sky-50/40 hover:border-sky-300 transition-all gap-3"
-                          >
-                            <div className="flex items-start sm:items-center gap-3 min-w-0">
-                              <span className="w-7 h-7 rounded-lg bg-[#002B49] text-white flex items-center justify-center font-extrabold text-xs shrink-0 shadow-2xs mt-0.5 sm:mt-0">
-                                {idx + 1}
-                              </span>
-                              <div className="min-w-0 space-y-1">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-bold text-slate-900 text-xs truncate">
-                                    {w.prefix} {w.code}: {w.title}
-                                  </span>
-                                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 shrink-0">
-                                    {w.status}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2.5 flex-wrap text-[11px] text-slate-500">
-                                  <span className="text-slate-400">
-                                    {w.totalDurationMinutes || 120} mins •{' '}
-                                    {w.learningOutcomes?.length || 0} Learning Outcomes
-                                  </span>
+                    {seriesWorkshops.length === 0 ? (
+                      <div className="p-8 text-center border border-dashed border-slate-200 rounded-xl text-xs text-slate-400">
+                        No workshops assigned to this series yet.
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {seriesWorkshops.map((w, idx) => {
+                          const devList =
+                            w.assignedDevelopers && w.assignedDevelopers.length > 0
+                              ? w.assignedDevelopers
+                              : w.createdByName
+                              ? [{ id: w.createdBy || 'creator', name: w.createdByName, email: '' }]
+                              : [];
 
-                                  {/* Developer Small Tag(s) */}
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    {devList.length > 0 ? (
-                                      devList.map((dev) => (
-                                        <span
-                                          key={dev.id}
-                                          title={dev.email ? `${dev.name} (${dev.email})` : dev.name}
-                                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200/70 text-slate-800 text-[10px] font-medium border border-slate-200 transition-colors shrink-0"
-                                        >
-                                          <span className="w-3.5 h-3.5 rounded-full bg-[#002B49] text-white flex items-center justify-center text-[8px] font-bold">
-                                            {dev.name?.charAt(0) || 'D'}
-                                          </span>
-                                          <span className="truncate max-w-[120px]">{dev.name}</span>
-                                        </span>
-                                      ))
-                                    ) : (
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100/80 text-slate-400 text-[10px] italic border border-slate-200/80 shrink-0">
-                                        <User className="w-2.5 h-2.5" />
-                                        <span>No developer assigned</span>
+                          const isAssignedToMe = isUserAssignedToWorkshop(w, userProfile);
+                          const canEditThis = canUserModifyWorkshop(w, userProfile, safeSeries);
+                          const canViewFullContent = canUserViewFullWorkshopContent(
+                            w,
+                            userProfile,
+                            safeSeries
+                          );
+
+                          return (
+                            <div
+                              key={w.id}
+                              onClick={() => {
+                                if (!canViewFullContent) {
+                                  setOverviewWorkshop(w);
+                                }
+                              }}
+                              className={`flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl border transition-all gap-3 ${
+                                !canViewFullContent
+                                  ? 'border-slate-200 bg-slate-50/50 hover:bg-slate-100/70 cursor-pointer'
+                                  : isAssignedToMe
+                                  ? 'border-sky-300 bg-sky-50/40 shadow-2xs'
+                                  : 'border-slate-200 bg-slate-50/60'
+                              }`}
+                            >
+                              <div className="flex items-start sm:items-center gap-3 min-w-0">
+                                <span className="w-7 h-7 rounded-lg bg-[#002B49] text-white flex items-center justify-center font-extrabold text-xs shrink-0 shadow-2xs mt-0.5 sm:mt-0">
+                                  {idx + 1}
+                                </span>
+                                <div className="min-w-0 space-y-1">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-bold text-slate-900 text-xs truncate">
+                                      {w.prefix} {w.code}: {w.title}
+                                    </span>
+                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 shrink-0">
+                                      {w.status}
+                                    </span>
+                                    {isAssignedToMe && (
+                                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
+                                        Assigned to You
+                                      </span>
+                                    )}
+                                    {!canViewFullContent && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
+                                        <Lock className="w-2.5 h-2.5" />
+                                        <span>Overview Only</span>
                                       </span>
                                     )}
                                   </div>
+                                  <div className="flex items-center gap-2.5 flex-wrap text-[11px] text-slate-500">
+                                    <span className="text-slate-400">
+                                      {w.totalDurationMinutes || 120} mins •{' '}
+                                      {canViewFullContent
+                                        ? `${w.learningOutcomes?.length || 0} Learning Outcomes`
+                                        : 'Institutional Summary'}
+                                    </span>
+
+                                    {/* Developer Small Tag(s) */}
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      {devList.length > 0 ? (
+                                        devList.map((dev) => (
+                                          <span
+                                            key={dev.id}
+                                            title={dev.email ? `${dev.name} (${dev.email})` : dev.name}
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200/70 text-slate-800 text-[10px] font-medium border border-slate-200 transition-colors shrink-0"
+                                          >
+                                            <span className="w-3.5 h-3.5 rounded-full bg-[#002B49] text-white flex items-center justify-center text-[8px] font-bold">
+                                              {dev.name?.charAt(0) || 'D'}
+                                            </span>
+                                            <span className="truncate max-w-[120px]">{dev.name}</span>
+                                          </span>
+                                        ))
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100/80 text-slate-400 text-[10px] italic border border-slate-200/80 shrink-0">
+                                          <User className="w-2.5 h-2.5" />
+                                          <span>No developer assigned</span>
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
 
-                            <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
-                              <button
-                                onClick={() => onSelectWorkshop(w, 'preview')}
-                                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-white transition-colors cursor-pointer"
-                                title="Preview"
-                              >
-                                <Eye className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => onSelectWorkshop(w, 'edit')}
-                                className="px-2.5 py-1 rounded-lg bg-[#002B49] text-white text-xs font-semibold hover:bg-sky-900 transition-colors cursor-pointer"
-                              >
-                                Open
-                              </button>
+                              <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                                {!canViewFullContent ? (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOverviewWorkshop(w);
+                                    }}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200/90 text-slate-800 transition-colors cursor-pointer flex items-center gap-1.5 border border-slate-300/80 shadow-2xs"
+                                    title="View Workshop Summary (Restricted Outline)"
+                                  >
+                                    <FileText className="w-3.5 h-3.5 text-slate-600" />
+                                    <span>Quick Overview</span>
+                                  </button>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => onSelectWorkshop(w, 'preview')}
+                                      className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-white transition-colors cursor-pointer"
+                                      title="Preview"
+                                    >
+                                      <Eye className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => onSelectWorkshop(w, 'edit')}
+                                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                                        canEditThis
+                                          ? 'bg-[#002B49] text-white hover:bg-sky-900'
+                                          : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                                      }`}
+                                    >
+                                      {canEditThis ? (
+                                        <>
+                                          <Edit className="w-3.5 h-3.5 text-amber-300" />
+                                          <span>Edit Outline</span>
+                                        </>
+                                      ) : w.status === 'Approved' ? (
+                                        <>
+                                          <Lock className="w-3.5 h-3.5 text-slate-500" />
+                                          <span>View (Locked)</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Eye className="w-3.5 h-3.5 text-slate-500" />
+                                          <span>View Outline</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })()}
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-slate-400">
@@ -545,6 +693,15 @@ export const SeriesList: React.FC<SeriesListProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Workshop Quick Overview Modal for restricted outlines */}
+      {overviewWorkshop && (
+        <WorkshopQuickOverviewModal
+          workshop={overviewWorkshop}
+          seriesList={safeSeries}
+          onClose={() => setOverviewWorkshop(null)}
+        />
       )}
     </div>
   );

@@ -18,7 +18,18 @@ interface AuthContextType {
   isAuthenticated: boolean;
   loading: boolean;
   isAdmin: boolean;
+  isProgramAdmin: boolean;
+  isProjectLead: boolean;
+  isWorkshopLead: boolean;
+  isAcademicAffairs: boolean;
   isDeveloper: boolean;
+  canCreateSeries: boolean;
+  canEditSeries: boolean;
+  canInitiateWorkshop: boolean;
+  canApproveWorkshop: boolean;
+  canAssignDevelopers: boolean;
+  canChangeStatus: boolean;
+  canSwitchRoles: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string, name: string, role?: UserRole) => Promise<void>;
@@ -29,9 +40,28 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const ADMIN_EMAILS = ['admin@ucw.ca', 'admin@ucanwest.ca', 'faculty.admin@ucw.ca'];
+const ADMIN_EMAILS = [
+  'admin@ucw.ca',
+  'admin@ucanwest.ca',
+  'orkhon.erdenebaatar@ucanwest.ca',
+  'komil.mamajanov@ucanwest.ca',
+  'komil.mamajanov@ucw.ca',
+];
 const DEMO_STORAGE_KEY = 'ucw_active_session_profile';
 const ROLE_OVERRIDES_KEY = 'ucw_user_role_overrides';
+
+const isMohsenGhodratProfile = (profile?: Partial<UserProfile> | null): boolean => {
+  if (!profile) return false;
+  const email = (profile.email || '').toLowerCase();
+  const name = (profile.displayName || '').toLowerCase();
+  const id = (profile.id || '').toLowerCase();
+  return (
+    name.includes('mohsen ghodrat') ||
+    email.includes('mohsen.ghodrat') ||
+    email.includes('mohsenghodrat') ||
+    id.includes('mohsen_ghodrat')
+  );
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
@@ -195,39 +225,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let mockRole: UserRole = 'developer';
 
       // Intercept specific requested mock accounts to bypass disabled Firebase Auth
-      if ((normalizedEmail === 'admin@ucanwest.ca' || normalizedEmail === 'admin') && pass === 'admin123') {
-        mockId = 'demo-admin-ucw-01';
-        mockName = 'Administrator';
+      if (
+        (normalizedEmail === 'orkhon.erdenebaatar@ucanwest.ca' ||
+          normalizedEmail === 'admin@ucanwest.ca' ||
+          normalizedEmail === 'admin') &&
+        (pass === '123456' || pass === 'admin123')
+      ) {
+        mockId = 'admin_orkhon_erdenebaatar';
+        mockName = 'Orkhon Erdenebaatar';
         mockRole = 'administrator';
+      } else if (normalizedEmail === 'komil.mamajanov@ucanwest.ca' && pass === '123456') {
+        mockId = 'lead_komil_mamajanov';
+        mockName = 'Komil Mamajanov';
+        mockRole = 'project_lead';
       } else if (normalizedEmail === 'mohsen.ghodrat@ucanwest.ca' && pass === '123456') {
-        mockId = 'dev_mohsen_ghodrat';
+        mockId = 'lead_mohsen_ghodrat';
         mockName = 'Mohsen Ghodrat';
+        mockRole = 'workshop_lead';
       } else if (normalizedEmail === 'amirhossein.zaji@ucanwest.ca' && pass === '123456') {
-        mockId = 'dev_amirhossein_zaji';
+        mockId = 'lead_amirhossein_zaji';
         mockName = 'Amirhossein Zaji';
+        mockRole = 'workshop_lead';
       } else if (normalizedEmail === 'cheryl.thomas@ucanwest.ca' && pass === '123456') {
-        mockId = 'dev_cheryl_thomas';
+        mockId = 'lead_cheryl_thomas';
         mockName = 'Cheryl Thomas';
+        mockRole = 'workshop_lead';
+      } else if (normalizedEmail === 'amy.hua@ucanwest.ca' && pass === '123456') {
+        mockId = 'affairs_amy_hua';
+        mockName = 'Amy Hua';
+        mockRole = 'academic_affairs';
+      } else if (
+        (normalizedEmail === 'developer@ucanwest.ca' || normalizedEmail === 'developer') &&
+        (pass === '123456' || pass === 'developer123')
+      ) {
+        mockId = 'dev_faculty_member';
+        mockName = 'Developer';
+        mockRole = 'developer';
       }
 
       if (mockId) {
-        try {
-          const rawOverrides = localStorage.getItem(ROLE_OVERRIDES_KEY);
-          if (rawOverrides) {
-            const overrides = JSON.parse(rawOverrides);
-            if (overrides[mockId] || overrides[normalizedEmail]) {
-              mockRole = overrides[mockId] || overrides[normalizedEmail];
+        // Only Mohsen Ghodrat can have role overrides
+        if (mockId === 'lead_mohsen_ghodrat' || mockName.includes('Mohsen Ghodrat')) {
+          try {
+            const rawOverrides = localStorage.getItem(ROLE_OVERRIDES_KEY);
+            if (rawOverrides) {
+              const overrides = JSON.parse(rawOverrides);
+              if (overrides[mockId] || overrides[normalizedEmail]) {
+                mockRole = overrides[mockId] || overrides[normalizedEmail];
+              }
             }
-          }
-        } catch {}
+          } catch {}
+        }
 
         // Bypass Firebase auth and set mock profile
         const mockProfile: UserProfile = {
           id: mockId,
-          email: normalizedEmail === 'admin' ? 'admin@ucanwest.ca' : normalizedEmail,
+          email: normalizedEmail === 'admin' ? 'orkhon.erdenebaatar@ucanwest.ca' : normalizedEmail,
           displayName: mockName,
           role: mockRole,
-          department: mockRole === 'administrator' ? 'Administration & Governance' : 'School of Business & Technology',
+          department:
+            mockRole === 'administrator' || mockRole === 'project_lead'
+              ? 'Administration & Governance'
+              : mockRole === 'academic_affairs'
+              ? 'Academic Affairs'
+              : mockName === 'Cheryl Thomas'
+              ? 'Department of Management'
+              : mockName === 'Amirhossein Zaji'
+              ? 'Department of Analytics'
+              : 'School of Business & Technology',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -277,9 +342,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateRole = async (newRole: UserRole) => {
     if (!userProfile) return;
+    
+    // STRICT RULE: Only Mohsen Ghodrat can switch roles
+    if (!isMohsenGhodratProfile(userProfile)) {
+      console.warn('Role switching is strictly reserved for Mohsen Ghodrat.');
+      return;
+    }
+
     const updatedProfile = { ...userProfile, role: newRole, updatedAt: new Date().toISOString() };
     setUserProfile(updatedProfile);
     localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(updatedProfile));
+
+    try {
+      const raw = localStorage.getItem(ROLE_OVERRIDES_KEY);
+      const overrides = raw ? JSON.parse(raw) : {};
+      overrides[userProfile.id] = newRole;
+      if (userProfile.email) overrides[userProfile.email.toLowerCase()] = newRole;
+      localStorage.setItem(ROLE_OVERRIDES_KEY, JSON.stringify(overrides));
+    } catch {}
 
     const path = `users/${userProfile.id}`;
     try {
@@ -299,8 +379,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const isAuthenticated = Boolean(currentUser || userProfile);
-  const isAdmin = userProfile?.role === 'administrator';
-  const isDeveloper = userProfile?.role === 'developer' || isAdmin;
+  const isProgramAdmin = userProfile?.role === 'administrator';
+  const isProjectLead = userProfile?.role === 'project_lead';
+  const isWorkshopLead = userProfile?.role === 'workshop_lead';
+  const isAcademicAffairs = userProfile?.role === 'academic_affairs';
+  const isDeveloper = userProfile?.role === 'developer';
+
+  // Admin-level view (Program Administrator & Project Lead have administrative governance)
+  const isAdmin = isProgramAdmin || isProjectLead;
+
+  // Specific Permission Flags:
+  // 1. Series creation: only Program Administrator (Orkhon)
+  const canCreateSeries = isProgramAdmin;
+  // 2. Series editing: Program Administrator & Workshop Leads (for their assigned series)
+  const canEditSeries = isProgramAdmin || isWorkshopLead;
+  // 3. Initiate creating a workshop: ONLY Workshop Leads (no admin creation)
+  const canInitiateWorkshop = isWorkshopLead;
+  // 4. Approve a workshop / Change status: Workshop Leads & Program Administrator
+  const canApproveWorkshop = isWorkshopLead || isProgramAdmin;
+  const canAssignDevelopers = isWorkshopLead || isProgramAdmin;
+  const canChangeStatus = isWorkshopLead || isProgramAdmin;
+
+  // Role switching is strictly reserved for Mohsen Ghodrat
+  const canSwitchRoles = isMohsenGhodratProfile(userProfile);
 
   return (
     <AuthContext.Provider
@@ -310,7 +411,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated,
         loading,
         isAdmin,
+        isProgramAdmin,
+        isProjectLead,
+        isWorkshopLead,
+        isAcademicAffairs,
         isDeveloper,
+        canCreateSeries,
+        canEditSeries,
+        canInitiateWorkshop,
+        canApproveWorkshop,
+        canAssignDevelopers,
+        canChangeStatus,
+        canSwitchRoles,
         signInWithGoogle,
         signInWithEmail,
         signUpWithEmail,

@@ -9,12 +9,16 @@ import {
   Users,
   Award,
   CheckCircle2,
+  XCircle,
   Bookmark,
   Building,
   Check,
+  ListChecks,
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { Workshop, DimensionRating } from '../../types';
+import { calculateWorkshopProgress } from '../../utils/workshopProgress';
 
 interface WorkshopPreviewProps {
   workshop: Workshop;
@@ -52,8 +56,12 @@ const RATING_EXPANDED: Record<string, { label: string; bg: string }> = {
 };
 
 export const WorkshopPreview: React.FC<WorkshopPreviewProps> = ({ workshop, onBack, onEdit }) => {
+  const { isAdmin } = useAuth();
   const { success } = useToast();
   const [copied, setCopied] = useState(false);
+  const [showProgressDetails, setShowProgressDetails] = useState(true);
+
+  const progress = calculateWorkshopProgress(workshop);
 
   const handleCopyText = () => {
     const text = `
@@ -142,6 +150,103 @@ ${(workshop.assignedDevelopers || []).map((d) => `- ${d.name} (${d.role}) - ${d.
           </button>
         </div>
       </div>
+
+      {/* Admin Development Progress Summary (print:hidden) */}
+      {isAdmin && (
+        <div className="print:hidden bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-[#002B49] text-white flex items-center justify-center font-bold">
+                <ListChecks className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-extrabold text-slate-900">
+                    Administrator Review Checklist
+                  </h3>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${progress.readinessColor.bg} ${progress.readinessColor.text} ${progress.readinessColor.border}`}
+                  >
+                    {progress.readinessLabel}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 font-medium">
+                  {progress.completedCount} of {progress.totalCount} curriculum development steps complete ({progress.percentage}%)
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowProgressDetails(!showProgressDetails)}
+              className="text-xs font-bold text-blue-700 hover:text-blue-900 hover:underline self-start sm:self-auto cursor-pointer"
+            >
+              {showProgressDetails ? 'Hide Step Details' : 'Show Step Details'}
+            </button>
+          </div>
+
+          {/* Progress Bar */}
+          <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                progress.percentage === 100
+                  ? 'bg-emerald-500'
+                  : progress.percentage >= 70
+                  ? 'bg-blue-600'
+                  : progress.percentage >= 40
+                  ? 'bg-amber-500'
+                  : 'bg-rose-500'
+              }`}
+              style={{ width: `${progress.percentage}%` }}
+            />
+          </div>
+
+          {/* 8-Step Breakdown Grid */}
+          {showProgressDetails && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-2">
+              {progress.steps.map((st) => (
+                <div
+                  key={st.id}
+                  className={`p-2.5 rounded-xl border transition-all ${
+                    st.isDone
+                      ? 'bg-emerald-50/50 border-emerald-200'
+                      : 'bg-rose-50/50 border-rose-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono font-bold text-slate-400">
+                      STEP {st.number}
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1 text-[10px] font-extrabold uppercase ${
+                        st.isDone ? 'text-emerald-800' : 'text-rose-700'
+                      }`}
+                    >
+                      {st.isDone ? (
+                        <>
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>Done</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-3 h-3 text-rose-600" />
+                          <span>Not Done</span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                  <h4 className="text-xs font-bold text-slate-900 mt-1 truncate">
+                    {st.label}
+                  </h4>
+                  <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                    {st.detail}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Institutional Document Canvas */}
       <div
