@@ -13,14 +13,16 @@ import { SeriesList } from './components/series/SeriesList';
 import { MaterialsRepository } from './components/materials/MaterialsRepository';
 import { MaterialPreviewModal } from './components/materials/MaterialPreviewModal';
 import { UserManagement } from './components/admin/UserManagement';
+import { OutcomeMappingView } from './components/mapping/OutcomeMapping';
 
 import { workshopService } from './services/workshopService';
 import { seriesService } from './services/seriesService';
 import { materialService } from './services/materialService';
 import { userService } from './services/userService';
 import { seedService } from './services/seedService';
+import { courseService } from './services/courseService';
 
-import { Workshop, WorkshopSeries, Material, UserProfile } from './types';
+import { Workshop, WorkshopSeries, Material, UserProfile, Course, OutcomeMapping } from './types';
 import { canUserViewFullWorkshopContent } from './utils/workshopPermissions';
 
 type ActiveView =
@@ -30,7 +32,8 @@ type ActiveView =
   | 'workshop-preview'
   | 'series'
   | 'materials'
-  | 'admin-users';
+  | 'admin-users'
+  | 'mapping';
 
 type PendingAction =
   | { type: 'navigate'; view: string; id?: string }
@@ -72,6 +75,8 @@ const MainApp: React.FC = () => {
   const [series, setSeries] = useState<WorkshopSeries[]>([]);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [mappings, setMappings] = useState<OutcomeMapping[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
   // Stable dirty change handler to prevent re-render cascading
@@ -126,12 +131,24 @@ const MainApp: React.FC = () => {
       if (isMounted) setUsers(Array.isArray(uList) ? uList : []);
     });
 
+    // 5. Subscribe to courses with live updates
+    const unsubscribeCourses = courseService.subscribeCourses((cList) => {
+      if (isMounted) setCourses(Array.isArray(cList) ? cList : []);
+    });
+
+    // 6. Subscribe to outcome mappings with live updates
+    const unsubscribeMappings = courseService.subscribeMappings((mList) => {
+      if (isMounted) setMappings(Array.isArray(mList) ? mList : []);
+    });
+
     return () => {
       isMounted = false;
       if (typeof unsubscribeWorkshops === 'function') unsubscribeWorkshops();
       if (typeof unsubscribeSeries === 'function') unsubscribeSeries();
       if (typeof unsubscribeMaterials === 'function') unsubscribeMaterials();
       if (typeof unsubscribeUsers === 'function') unsubscribeUsers();
+      if (typeof unsubscribeCourses === 'function') unsubscribeCourses();
+      if (typeof unsubscribeMappings === 'function') unsubscribeMappings();
     };
   }, [isAuthenticated, userProfile]);
 
@@ -172,6 +189,8 @@ const MainApp: React.FC = () => {
       setActiveView('materials');
     } else if (view === 'dashboard') {
       setActiveView('dashboard');
+    } else if (view === 'mapping') {
+      setActiveView('mapping');
     }
   };
 
@@ -469,6 +488,16 @@ const MainApp: React.FC = () => {
           users={users}
           workshops={workshops}
           onUsersUpdated={(updated) => setUsers(updated)}
+        />
+      )}
+
+      {/* 8. Learning Outcome Mapping View */}
+      {activeView === 'mapping' && (
+        <OutcomeMappingView
+          courses={courses}
+          series={series}
+          workshops={workshops}
+          mappings={mappings}
         />
       )}
 

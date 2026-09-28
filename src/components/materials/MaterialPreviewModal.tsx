@@ -365,13 +365,13 @@ export const MaterialPreviewModal: React.FC<MaterialPreviewModalProps> = ({
                 dangerouslySetInnerHTML={{ __html: docxHtml }}
               />
             </div>
-          ) : isHtml && textContent !== null ? (
+          ) : isHtml ? (
             /* Interactive HTML Document Viewer inside the Pop-up Window */
             <div className="w-full h-full bg-white rounded-xl shadow-md border border-slate-200 flex flex-col overflow-hidden">
               <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3 px-4 shrink-0">
                 <div className="flex items-center gap-2 text-xs font-bold text-[#002B49]">
                   <FileCode className="w-4 h-4 text-sky-600" />
-                  <span>HTML Document View ({textContent.length} characters)</span>
+                  <span>HTML Document View {textContent !== null && `(${textContent.length} characters)`}</span>
                 </div>
                 {/* View Mode Switcher */}
                 <div className="flex items-center gap-1.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
@@ -404,9 +404,10 @@ export const MaterialPreviewModal: React.FC<MaterialPreviewModalProps> = ({
                 /* Sandboxed Iframe for Beautiful HTML Rendering */
                 <div className="flex-1 bg-white relative">
                   <iframe
-                    srcDoc={textContent}
+                    src={textContent ? undefined : (activeUrl || material.downloadUrl || undefined)}
+                    srcDoc={textContent || undefined}
                     title="HTML Preview"
-                    sandbox="allow-scripts"
+                    sandbox="allow-scripts allow-same-origin"
                     className="w-full h-full border-0 bg-white"
                   />
                 </div>
@@ -414,7 +415,7 @@ export const MaterialPreviewModal: React.FC<MaterialPreviewModalProps> = ({
                 /* Code Source View */
                 <div className="flex-1 bg-slate-950 text-slate-100 flex flex-col overflow-hidden">
                   <div className="flex-1 p-4 overflow-auto font-mono text-xs leading-relaxed custom-scrollbar whitespace-pre-wrap select-text">
-                    {textContent}
+                    {textContent || 'Source code unavailable for remote preview. Please download the file to inspect.'}
                   </div>
                 </div>
               )}

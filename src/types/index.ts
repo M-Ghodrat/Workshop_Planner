@@ -162,10 +162,34 @@ export interface WorkshopSeries {
   workshopCount?: number;
   workshopIds: string[];
   status: 'Active' | 'Archived' | 'Draft';
+  learningOutcomes?: LearningOutcome[];
   createdBy: string;
   createdByName?: string;
   createdAt?: string | any;
   updatedAt?: string | any;
+}
+
+export interface Course {
+  id?: string;
+  name: string;
+  prefix: string; // e.g. BUSI, MGMT
+  description: string;
+  courseOutline: string; // Course Syllabus / Outline text content
+  learningOutcomes: LearningOutcome[];
+  createdBy: string;
+  createdAt?: string | any;
+  updatedAt?: string | any;
+}
+
+export interface OutcomeMapping {
+  id?: string;
+  courseId: string;
+  courseLoId: string;
+  targetType: 'workshop' | 'series';
+  targetId: string; // workshopId or seriesId
+  targetLoId: string; // workshop LO ID or series LO ID
+  mappedBy: string;
+  createdAt?: string | any;
 }
 
 export type MaterialCategory =

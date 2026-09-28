@@ -90,5 +90,21 @@ service cloud.firestore {
         isAdmin() || resource.data.uploadedBy == request.auth.uid
       );
     }
+
+    // Course collection rules
+    match /courses/{courseId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'workshop_lead' || isAdmin()
+      );
+    }
+
+    // Outcome Mapping collection rules
+    match /outcome_mappings/{mappingId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'workshop_lead' || isAdmin()
+      );
+    }
   }
 }

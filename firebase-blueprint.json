@@ -115,6 +115,39 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["title", "fileName", "category", "downloadUrl", "uploadedBy"]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "Course profile containing course metadata and Course Learning Outcomes (LOs)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique course ID", "pattern": "^[a-zA-Z0-9_-]+$" },
+        "name": { "type": "string", "description": "Course title", "maxLength": 200 },
+        "prefix": { "type": "string", "description": "Course prefix code e.g. BUSI, MGMT", "maxLength": 10 },
+        "description": { "type": "string", "description": "Detailed course description", "maxLength": 5000 },
+        "courseOutline": { "type": "string", "description": "Rich text or plain text syllabus outline", "maxLength": 10000 },
+        "learningOutcomes": { "type": "array", "description": "Array of Course Learning Outcomes" },
+        "createdBy": { "type": "string", "description": "UID of course creator" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "prefix", "createdBy"]
+    },
+    "OutcomeMapping": {
+      "title": "OutcomeMapping",
+      "description": "Mapping between Course Learning Outcomes and Workshop/Series Learning Outcomes",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique mapping ID", "pattern": "^[a-zA-Z0-9_-]+$" },
+        "courseId": { "type": "string", "description": "Associated course ID", "maxLength": 128 },
+        "courseLoId": { "type": "string", "description": "Associated Course Learning Outcome ID", "maxLength": 128 },
+        "targetType": { "type": "string", "enum": ["workshop", "series"], "description": "Whether mapping links to workshop or series outcome" },
+        "targetId": { "type": "string", "description": "Workshop or Series ID", "maxLength": 128 },
+        "targetLoId": { "type": "string", "description": "Workshop LO ID or Series LO ID", "maxLength": 128 },
+        "mappedBy": { "type": "string", "description": "UID of mapper", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["courseId", "courseLoId", "targetType", "targetId", "targetLoId", "mappedBy"]
     }
   },
   "firestore": {
@@ -133,6 +166,14 @@
     "/materials/{materialId}": {
       "schema": "Material",
       "description": "Uploaded workshop content files and assets metadata"
+    },
+    "/courses/{courseId}": {
+      "schema": "Course",
+      "description": "Course details and Course Learning Outcomes (LOs)"
+    },
+    "/outcome_mappings/{mappingId}": {
+      "schema": "OutcomeMapping",
+      "description": "Outcome mapping associations between courses and workshops/series"
     }
   }
 }

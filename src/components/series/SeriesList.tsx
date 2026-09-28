@@ -19,7 +19,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { seriesService } from '../../services/seriesService';
-import { WorkshopSeries, Workshop } from '../../types';
+import { WorkshopSeries, Workshop, LearningOutcome, BloomsTaxonomy } from '../../types';
 import {
   isUserAssignedToWorkshop,
   isWorkshopInSeries,
@@ -107,12 +107,20 @@ export const SeriesList: React.FC<SeriesListProps> = ({
   const [status, setStatus] = useState<'Active' | 'Draft' | 'Archived'>('Active');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Series Learning Outcomes State
+  const [seriesLos, setSeriesLos] = useState<LearningOutcome[]>([]);
+  const [newLoText, setNewLoText] = useState('');
+  const [newLoBloom, setNewLoBloom] = useState<BloomsTaxonomy>('Understand');
+
   const handleOpenCreate = () => {
     setName('');
     setDescription('');
     setCoreFocus('');
     setPrefix('');
     setStatus('Active');
+    setSeriesLos([]);
+    setNewLoText('');
+    setNewLoBloom('Understand');
     setEditingSeries(null);
     setIsCreating(true);
   };
@@ -123,8 +131,34 @@ export const SeriesList: React.FC<SeriesListProps> = ({
     setCoreFocus(s.coreFocus);
     setPrefix(s.prefix || '');
     setStatus(s.status);
+    setSeriesLos(s.learningOutcomes || []);
+    setNewLoText('');
+    setNewLoBloom('Understand');
     setEditingSeries(s);
     setIsCreating(true);
+  };
+
+  const handleAddSeriesLo = () => {
+    if (!newLoText.trim()) return;
+    const newCode = `LO${seriesLos.length + 1}`;
+    const newLo: LearningOutcome = {
+      id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9),
+      code: newCode,
+      text: newLoText.trim(),
+      bloomLevel: newLoBloom,
+    };
+    setSeriesLos([...seriesLos, newLo]);
+    setNewLoText('');
+  };
+
+  const handleRemoveSeriesLo = (id: string) => {
+    const filtered = seriesLos.filter((lo) => lo.id !== id);
+    // Re-code remaining LOs
+    const reCoded = filtered.map((lo, idx) => ({
+      ...lo,
+      code: `LO${idx + 1}`,
+    }));
+    setSeriesLos(reCoded);
   };
 
   const handleSaveSeries = async (e: React.FormEvent) => {
@@ -140,6 +174,7 @@ export const SeriesList: React.FC<SeriesListProps> = ({
           coreFocus: coreFocus.trim(),
           prefix: prefix.trim().toUpperCase(),
           status,
+          learningOutcomes: seriesLos,
         });
         success('Series Updated', `"${name}" updated successfully.`);
       } else {
@@ -151,6 +186,7 @@ export const SeriesList: React.FC<SeriesListProps> = ({
             prefix: prefix.trim().toUpperCase(),
             status,
             workshopIds: [],
+            learningOutcomes: seriesLos,
           },
           userProfile
         );
@@ -408,6 +444,30 @@ export const SeriesList: React.FC<SeriesListProps> = ({
                 </div>
               </div>
 
+              {/* Series Learning Outcomes */}
+              <div className="space-y-2.5 border-t border-slate-100 pt-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Series Learning Outcomes ({selectedSeriesForView.learningOutcomes?.length || 0})
+                </h4>
+                {selectedSeriesForView.learningOutcomes && selectedSeriesForView.learningOutcomes.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {selectedSeriesForView.learningOutcomes.map((lo) => (
+                      <div key={lo.id} className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-black text-[#002B49]">{lo.code}</span>
+                          <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-sky-50 text-sky-800 border border-sky-100">
+                            {lo.bloomLevel}
+                          </span>
+                        </div>
+                        <p className="text-slate-600 leading-relaxed font-semibold">{lo.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 italic">No series learning outcomes defined yet.</p>
+                )}
+              </div>
+
               {/* Workshops Belonging to This Series */}
               {(() => {
                 const seriesWorkshops = safeWorkshops.filter((w) =>
@@ -597,7 +657,7 @@ export const SeriesList: React.FC<SeriesListProps> = ({
       {/* Create / Edit Series Modal */}
       {isCreating && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-slate-900 mb-1">
               {editingSeries ? 'Edit Workshop Series' : 'Create New Workshop Series'}
             </h3>
@@ -672,6 +732,81 @@ export const SeriesList: React.FC<SeriesListProps> = ({
                   <option value="Draft">Draft</option>
                   <option value="Archived">Archived</option>
                 </select>
+              </div>
+
+              {/* Series Learning Outcomes Section */}
+              <div className="border-t border-slate-100 pt-3 space-y-3">
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Series Learning Outcomes ({seriesLos.length})
+                  </h4>
+                  <p className="text-[10px] text-slate-400">
+                    Define outcomes for the entire series sequence.
+                  </p>
+                </div>
+
+                {seriesLos.length > 0 && (
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                    {seriesLos.map((lo) => (
+                      <div key={lo.id} className="flex items-start gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                        <div className="flex-1 space-y-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-extrabold text-[#002B49]">{lo.code}</span>
+                            <span className="text-[9px] font-bold px-1 py-0.2 rounded bg-sky-100 text-sky-800">
+                              {lo.bloomLevel}
+                            </span>
+                          </div>
+                          <p className="text-slate-600 leading-snug">{lo.text}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSeriesLo(lo.id)}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded-md shrink-0 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="col-span-2">
+                      <input
+                        type="text"
+                        placeholder="Define learning outcome..."
+                        value={newLoText}
+                        onChange={(e) => setNewLoText(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-hidden bg-white"
+                      />
+                    </div>
+                    <div>
+                      <select
+                        value={newLoBloom}
+                        onChange={(e) => setNewLoBloom(e.target.value as BloomsTaxonomy)}
+                        className="w-full px-2 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:outline-hidden"
+                      >
+                        <option value="Remember">Remember</option>
+                        <option value="Understand">Understand</option>
+                        <option value="Apply">Apply</option>
+                        <option value="Analyze">Analyze</option>
+                        <option value="Evaluate">Evaluate</option>
+                        <option value="Create">Create</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleAddSeriesLo}
+                      className="px-3 py-1 rounded-lg bg-[#002B49] text-white text-[10px] font-bold hover:bg-sky-900 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3 text-amber-400" />
+                      <span>Add Outcome</span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">

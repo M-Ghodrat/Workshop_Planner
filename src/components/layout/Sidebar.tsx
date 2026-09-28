@@ -31,7 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setCollapsed,
   onLogoutRequest,
 }) => {
-  const { userProfile, isAdmin, canInitiateWorkshop, logout } = useAuth();
+  const { userProfile, isAdmin, canInitiateWorkshop, logout, isProgramAdmin, isProjectLead, isWorkshopLead, isAcademicAffairs } = useAuth();
 
   const handleLogout = () => {
     if (onLogoutRequest) {
@@ -69,6 +69,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: PlusCircle,
       visible: canInitiateWorkshop,
       description: 'New 2-hour outline',
+    },
+    {
+      id: 'mapping',
+      label: 'Outcome Mapping',
+      icon: GraduationCap,
+      visible: isProgramAdmin || isProjectLead || isWorkshopLead || isAcademicAffairs,
+      description: 'Course & Workshop LO Alignment',
     },
     {
       id: 'users',
