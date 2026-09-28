@@ -15,6 +15,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { courseService } from '../../services/courseService';
 import { Course, OutcomeMapping, Workshop, WorkshopSeries, LearningOutcome, BloomsTaxonomy } from '../../types';
+import { isUserLeadOfSeries, isSeriesAssignedToDeveloper } from '../../utils/workshopPermissions';
 
 interface OutcomeMappingProps {
   courses: Course[];
@@ -42,19 +43,43 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
     const name = (userProfile.displayName || '').toLowerCase();
 
     // Mapping for Mohsen Ghodrat
-    if (name.includes('mohsen ghodrat') || email.includes('mohsenghodrat') || email.includes('mohsen.ghodrat')) {
+    if (name.includes('mohsen') || email.includes('mohsen')) {
       ids.push('lead_mohsen_ghodrat');
+      ids.push('dev_mohsen_ghodrat');
     }
     // Mapping for Cheryl Thomas
-    if (name.includes('cheryl thomas') || email.includes('cheryl.thomas')) {
+    if (name.includes('cheryl') || email.includes('cheryl')) {
       ids.push('lead_cheryl_thomas');
+      ids.push('dev_cheryl_thomas');
     }
     // Mapping for Amirhossein Zaji
-    if (name.includes('amirhossein zaji') || email.includes('amirhossein.zaji')) {
+    if (name.includes('amirhossein') || email.includes('amirhossein') || name.includes('zaji') || email.includes('zaji')) {
       ids.push('lead_amirhossein_zaji');
+      ids.push('dev_amirhossein_zaji');
     }
     return ids;
   }, [userProfile]);
+
+  // Filter series list first so we can reference its prefixes for courses
+  const filteredSeriesList = useMemo(() => {
+    if (isWorkshopLead && userProfile) {
+      return series.filter((s) => {
+        // 1. Is designated lead of this series (centralized permission utility including domain heuristics)
+        if (isUserLeadOfSeries(s, userProfile)) return true;
+
+        // 2. Created by this lead or their alias, or they are the lead
+        if (userIds.includes(s.createdBy)) return true;
+        if (s.leadId && userIds.includes(s.leadId)) return true;
+        if (s.leadEmail && s.leadEmail.toLowerCase() === userProfile.email?.toLowerCase()) return true;
+
+        // 3. Or they are assigned to any workshop belonging to this series
+        if (isSeriesAssignedToDeveloper(s, workshops, userProfile)) return true;
+
+        return false;
+      });
+    }
+    return series;
+  }, [series, isWorkshopLead, userProfile, userIds, workshops]);
 
   // Filter courses & series for workshop lead
   const filteredCoursesList = useMemo(() => {
@@ -68,34 +93,38 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
           c.createdBy === 'demo-admin-ucw-01' || 
           c.createdBy?.startsWith('admin') || 
           c.createdBy === 'admin';
-        return isOfficialAdminCourse;
+        if (isOfficialAdminCourse) return true;
+
+        // 3. Course is tagged with one of the lead's accessible series (e.g. AI series, Entrepreneurship series)
+        const isTaggedToMySeries = Array.isArray(c.seriesIds) && c.seriesIds.some((seriesId) =>
+          filteredSeriesList.some((s) => s.id === seriesId)
+        );
+        if (isTaggedToMySeries) return true;
+
+        // 4. Any course that is currently mapped to any of the lead's series or workshops
+        const isMappedToMyTarget = mappings.some((m) => {
+          if (m.courseId !== c.id) return false;
+          if (m.targetType === 'series') {
+            const targetSeries = series.find((s) => s.id === m.targetId);
+            return targetSeries && (
+              isUserLeadOfSeries(targetSeries, userProfile) ||
+              userIds.includes(targetSeries.createdBy) ||
+              (targetSeries.leadId && userIds.includes(targetSeries.leadId))
+            );
+          } else {
+            const targetWorkshop = workshops.find((w) => w.id === m.targetId);
+            return targetWorkshop && (
+              userIds.includes(targetWorkshop.createdBy) ||
+              (targetWorkshop.assignedDeveloperIds && targetWorkshop.assignedDeveloperIds.some((id) => userIds.includes(id)))
+            );
+          }
+        });
+
+        return isMappedToMyTarget;
       });
     }
     return courses;
-  }, [courses, isWorkshopLead, userProfile, userIds]);
-
-  const filteredSeriesList = useMemo(() => {
-    if (isWorkshopLead && userProfile) {
-      return series.filter((s) => {
-        // 1. Created by this lead or their alias, or they are the lead
-        if (userIds.includes(s.createdBy)) return true;
-        if (s.leadId && userIds.includes(s.leadId)) return true;
-        if (s.leadEmail && s.leadEmail.toLowerCase() === userProfile.email?.toLowerCase()) return true;
-
-        // 2. Direct match for AI Series if logged in as Mohsen Ghodrat
-        const nameLower = (s.name || '').toLowerCase();
-        const prefixLower = (s.prefix || '').toLowerCase();
-        if (nameLower.includes('ai') || prefixLower.includes('ai')) {
-          const email = (userProfile.email || '').toLowerCase();
-          const name = (userProfile.displayName || '').toLowerCase();
-          if (name.includes('mohsen') || email.includes('mohsen')) return true;
-        }
-
-        return false;
-      });
-    }
-    return series;
-  }, [series, isWorkshopLead, userProfile, userIds]);
+  }, [courses, isWorkshopLead, userProfile, userIds, mappings, series, workshops, filteredSeriesList]);
 
   // Active Selections
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
@@ -111,9 +140,14 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
   const [courseDesc, setCourseDesc] = useState('');
   const [courseOutline, setCourseOutline] = useState('');
   const [courseLos, setCourseLos] = useState<LearningOutcome[]>([]);
+  const [associatedSeriesIds, setAssociatedSeriesIds] = useState<string[]>([]);
   const [newLoText, setNewLoText] = useState('');
   const [newLoBloom, setNewLoBloom] = useState<BloomsTaxonomy>('Understand');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Delete Confirmation States
+  const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Sync selected elements when data loads
   React.useEffect(() => {
@@ -140,6 +174,7 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
       setCourseDesc(course.description || '');
       setCourseOutline(course.courseOutline || '');
       setCourseLos(course.learningOutcomes || []);
+      setAssociatedSeriesIds(course.seriesIds || []);
     } else {
       setEditingCourse(null);
       setCourseName('');
@@ -147,6 +182,7 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
       setCourseDesc('');
       setCourseOutline('');
       setCourseLos([]);
+      setAssociatedSeriesIds(selectedSeries?.id ? [selectedSeries.id] : []);
     }
     setNewLoText('');
     setNewLoBloom('Understand');
@@ -182,14 +218,32 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
     e.preventDefault();
     if (!courseName.trim() || !coursePrefix.trim() || !userProfile) return;
 
+    if (associatedSeriesIds.length === 0) {
+      error('Validation Error', 'Please select at least one associated Workshop Track (Series).');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
+      // Automatically add any typed-in learning outcome text that was not explicitly added using the "Add Course LO" button
+      let finalLos = [...courseLos];
+      if (newLoText.trim()) {
+        const autoLo: LearningOutcome = {
+          id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9),
+          code: `CO${finalLos.length + 1}`,
+          text: newLoText.trim(),
+          bloomLevel: newLoBloom,
+        };
+        finalLos.push(autoLo);
+      }
+
       const payload = {
         name: courseName.trim(),
         prefix: coursePrefix.trim().toUpperCase(),
         description: courseDesc.trim(),
         courseOutline: courseOutline.trim(),
-        learningOutcomes: courseLos,
+        learningOutcomes: finalLos,
+        seriesIds: associatedSeriesIds,
       };
 
       if (editingCourse && editingCourse.id) {
@@ -211,18 +265,27 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
     }
   };
 
-  // Delete Course
-  const handleDeleteCourse = async (course: Course) => {
-    if (!course.id || !window.confirm(`Delete course "${course.name}" and all of its outcome mapping associations?`)) return;
+  // Delete Course Confirmation Request
+  const requestDeleteCourse = (course: Course) => {
+    setCourseToDelete(course);
+  };
+
+  // Perform actual deletion after custom confirmation modal
+  const handleConfirmDeleteCourse = async () => {
+    if (!courseToDelete?.id) return;
+    setIsDeleting(true);
     try {
-      await courseService.deleteCourse(course.id);
-      await courseService.deleteMappingsForCourse(course.id);
-      success('Course Removed', `"${course.name}" has been deleted.`);
-      if (selectedCourse?.id === course.id) {
-        setSelectedCourse(filteredCoursesList.find((c) => c.id !== course.id) || null);
+      await courseService.deleteCourse(courseToDelete.id);
+      await courseService.deleteMappingsForCourse(courseToDelete.id);
+      success('Course Removed', `"${courseToDelete.name}" has been deleted.`);
+      if (selectedCourse?.id === courseToDelete.id) {
+        setSelectedCourse(filteredCoursesList.find((c) => c.id !== courseToDelete.id) || null);
       }
+      setCourseToDelete(null);
     } catch (err: any) {
       error('Delete Failed', err.message);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -405,7 +468,7 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDeleteCourse(course);
+                                requestDeleteCourse(course);
                               }}
                               className="p-1 rounded bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-600 cursor-pointer"
                               title="Delete Course Outline"
@@ -432,14 +495,14 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
               <div className="space-y-2 text-xs">
                 <div>
                   <span className="font-semibold text-slate-500 block">Syllabus Overview:</span>
-                  <p className="text-slate-600 mt-0.5 leading-relaxed line-clamp-3">
+                  <p className="text-slate-600 mt-0.5 leading-relaxed">
                     {selectedCourse.description || 'No description provided.'}
                   </p>
                 </div>
                 {selectedCourse.courseOutline && (
                   <div>
                     <span className="font-semibold text-slate-500 block">Course Syllabus:</span>
-                    <p className="text-slate-600 mt-0.5 leading-relaxed line-clamp-3 whitespace-pre-line font-medium bg-slate-50 p-2 rounded-lg border border-slate-100">
+                    <p className="text-slate-600 mt-0.5 leading-relaxed whitespace-pre-line font-medium bg-slate-50 p-2 rounded-lg border border-slate-100 max-h-[300px] overflow-y-auto">
                       {selectedCourse.courseOutline}
                     </p>
                   </div>
@@ -723,6 +786,30 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
             </div>
           )}
 
+          {/* Pedagogy Legend */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-3 text-left">
+            <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">Bloom's Taxonomy Cognitive Domains Legend</h4>
+            <div className="flex flex-wrap gap-2">
+              <span className="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-800 border border-slate-200 uppercase tracking-wide">
+                Remember • Knowledge Retrieval
+              </span>
+              <span className="text-[10px] font-bold px-2 py-1 rounded bg-blue-50 text-blue-800 border border-blue-200 uppercase tracking-wide">
+                Understand • Comprehension
+              </span>
+              <span className="text-[10px] font-bold px-2 py-1 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 uppercase tracking-wide">
+                Apply • Execution & Practice
+              </span>
+              <span className="text-[10px] font-bold px-2 py-1 rounded bg-amber-50 text-amber-800 border border-amber-200 uppercase tracking-wide">
+                Analyze • Differentiation & Organization
+              </span>
+              <span className="text-[10px] font-bold px-2 py-1 rounded bg-orange-50 text-orange-800 border border-orange-200 uppercase tracking-wide">
+                Evaluate • Critique & Standards
+              </span>
+              <span className="text-[10px] font-bold px-2 py-1 rounded bg-purple-50 text-purple-800 border border-purple-200 uppercase tracking-wide">
+                Create • Design & Innovation
+              </span>
+            </div>
+          </div>
 
         </div>
       </div>
@@ -868,6 +955,45 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
                 </div>
               </div>
 
+              {/* Series (Tracks) Association Tags */}
+              <div className="border-t border-slate-100 pt-3 space-y-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Associated Workshop Tracks (Series) <span className="text-rose-500">*</span>
+                </label>
+                <p className="text-[10px] text-slate-400">
+                  Select which tracks/series this course outline is available to.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                  {series.map((s) => {
+                    const isChecked = associatedSeriesIds.includes(s.id || '');
+                    return (
+                      <label
+                        key={s.id}
+                        className={`flex items-center gap-2 p-2.5 rounded-xl border text-xs font-semibold cursor-pointer select-none transition-all ${
+                          isChecked
+                            ? 'bg-sky-50/50 border-sky-400 text-sky-950 font-bold'
+                            : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setAssociatedSeriesIds([...associatedSeriesIds, s.id || '']);
+                            } else {
+                              setAssociatedSeriesIds(associatedSeriesIds.filter((id) => id !== s.id));
+                            }
+                          }}
+                          className="rounded text-sky-600 focus:ring-sky-500 w-4 h-4 cursor-pointer"
+                        />
+                        <span>{s.prefix || 'UCW'} • {s.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
@@ -885,6 +1011,62 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Course Warning/Confirmation Modal */}
+      {courseToDelete && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 text-left">
+            <div className="flex items-center gap-3 text-rose-600 mb-3">
+              <div className="p-2.5 rounded-full bg-rose-50 border border-rose-100">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900">
+                Delete University Course?
+              </h3>
+            </div>
+
+            <div className="space-y-3.5">
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Are you sure you want to delete the course <span className="font-extrabold text-slate-900">"{courseToDelete.prefix} • {courseToDelete.name}"</span>?
+              </p>
+
+              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-1 text-[11px]">
+                <div className="flex items-center gap-1.5 font-bold text-amber-950">
+                  <Info className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                  <span>CRITICAL WARNING</span>
+                </div>
+                <p className="leading-normal font-semibold">
+                  This action is permanent and cannot be undone. Deleting this university course outline will:
+                </p>
+                <ul className="list-disc pl-4 space-y-0.5 leading-normal font-medium mt-1">
+                  <li>Permanently erase its syllabus and course description</li>
+                  <li>Erase all of its associated Course Learning Outcomes (CO)</li>
+                  <li>Permanently destroy <span className="font-bold">all mapped outcome alignments</span> with workshop series and individual workshops</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 mt-6 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setCourseToDelete(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteCourse}
+                disabled={isDeleting}
+                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting...' : 'Yes, Delete Course'}
+              </button>
+            </div>
           </div>
         </div>
       )}

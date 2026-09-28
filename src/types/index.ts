@@ -177,6 +177,7 @@ export interface Course {
   courseOutline: string; // Course Syllabus / Outline text content
   learningOutcomes: LearningOutcome[];
   createdBy: string;
+  seriesIds?: string[];
   createdAt?: string | any;
   updatedAt?: string | any;
 }
