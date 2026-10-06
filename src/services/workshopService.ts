@@ -17,13 +17,15 @@ import { INITIAL_WORKSHOPS } from '../data/initialData';
 const COLLECTION_NAME = 'workshops';
 const LOCAL_STORAGE_KEY = 'ucw_cached_workshops';
 const DELETED_WORKSHOPS_KEY = 'ucw_deleted_workshop_ids';
+const LEGACY_DELETED_WORKSHOP_IDS = ['ws-pm-654', 'ws-data-610', 'ws-cloud-630'];
 
 export const getStoredDeletedWorkshopIds = (): string[] => {
   try {
     const raw = localStorage.getItem(DELETED_WORKSHOPS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.from(new Set([...LEGACY_DELETED_WORKSHOP_IDS, ...(Array.isArray(parsed) ? parsed : [])]));
   } catch {
-    return [];
+    return [...LEGACY_DELETED_WORKSHOP_IDS];
   }
 };
 
@@ -137,67 +139,62 @@ export const workshopService = {
       onSuccess(cached);
     }
 
-    try {
-      const collRef = collection(db, COLLECTION_NAME);
-      const q = query(collRef, orderBy('updatedAt', 'desc'));
+    // Fetch from persistent server database
+    fetch('/api/workshops')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((list) => {
+        if (Array.isArray(list)) {
+          const sanitizedList = list.map(sanitizeWorkshop);
+          notifySubscribers(sanitizedList);
+        }
+      })
+      .catch((e) => {
+        console.debug('Workshop API fetch notice:', e);
+      });
 
-      const unsubscribeFirestore = onSnapshot(
-        q,
-        (snapshot) => {
-          if (!snapshot.empty) {
-            const list: Workshop[] = snapshot.docs.map((docSnap) =>
-              sanitizeWorkshop({
-                ...(docSnap.data() as Omit<Workshop, 'id'>),
-                id: docSnap.id,
-              })
-            );
-            notifySubscribers(list);
+    const onFocus = () => {
+      fetch('/api/workshops')
+        .then((res) => (res.ok ? res.json() : null))
+        .then((list) => {
+          if (Array.isArray(list)) {
+            notifySubscribers(list.map(sanitizeWorkshop));
           }
-        },
-        (error) => {
-          console.warn('Workshop subscription notice:', error?.message || error);
-        }
-      );
-
-      return () => {
-        subscribers.delete(onSuccess);
-        if (typeof unsubscribeFirestore === 'function') {
-          unsubscribeFirestore();
-        }
-      };
-    } catch (error) {
-      console.warn('Failed to initialize workshop subscription:', error);
-      return () => {
-        subscribers.delete(onSuccess);
-      };
+        })
+        .catch(() => {});
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', onFocus);
     }
+
+    return () => {
+      subscribers.delete(onSuccess);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', onFocus);
+      }
+    };
   },
 
   getAllWorkshops: async (userId?: string, isAdmin?: boolean): Promise<Workshop[]> => {
     try {
-      const collRef = collection(db, COLLECTION_NAME);
-      const snapshot = await getDocs(collRef);
-      if (!snapshot.empty) {
-        const list: Workshop[] = snapshot.docs.map((docSnap) =>
-          sanitizeWorkshop({
-            ...(docSnap.data() as Omit<Workshop, 'id'>),
-            id: docSnap.id,
-          })
-        );
-        notifySubscribers(list);
-
-        if (!isAdmin && userId) {
-          return list.filter(
-            (w) =>
-              w.createdBy === userId ||
-              (Array.isArray(w.assignedDeveloperIds) && w.assignedDeveloperIds.includes(userId)) ||
-              w.status === 'Approved'
-          );
+      const res = await fetch('/api/workshops');
+      if (res.ok) {
+        const list: Workshop[] = await res.json();
+        if (Array.isArray(list)) {
+          const sanitizedList = list.map(sanitizeWorkshop);
+          notifySubscribers(sanitizedList);
+          if (!isAdmin && userId) {
+            return sanitizedList.filter(
+              (w) =>
+                w.createdBy === userId ||
+                (Array.isArray(w.assignedDeveloperIds) && w.assignedDeveloperIds.includes(userId)) ||
+                w.status === 'Approved'
+            );
+          }
+          return sanitizedList;
         }
-        return list;
       }
-    } catch (error) {
-      console.warn('getAllWorkshops fallback:', error);
+    } catch (e) {
+      console.debug('getAllWorkshops API notice:', e);
     }
 
     const cached = getCachedWorkshops();
@@ -214,13 +211,14 @@ export const workshopService = {
 
   getWorkshopById: async (id: string): Promise<Workshop | null> => {
     try {
-      const docRef = doc(db, COLLECTION_NAME, id);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        return sanitizeWorkshop({ ...(snap.data() as Omit<Workshop, 'id'>), id: snap.id });
+      const res = await fetch('/api/workshops');
+      if (res.ok) {
+        const list: Workshop[] = await res.json();
+        const found = list.find((w) => w.id === id);
+        if (found) return sanitizeWorkshop(found);
       }
-    } catch (error) {
-      console.warn('getWorkshopById fallback:', error);
+    } catch (e) {
+      console.debug('getWorkshopById API notice:', e);
     }
 
     const cached = getCachedWorkshops();
@@ -250,12 +248,19 @@ export const workshopService = {
     notifySubscribers([sanitized, ...cached]);
 
     try {
-      const docRef = await addDoc(collection(db, COLLECTION_NAME), sanitized);
-      return docRef.id;
+      const res = await fetch('/api/workshops', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sanitized),
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        return saved.id || newId;
+      }
     } catch (error) {
-      console.warn('Saved workshop locally:', error);
-      return newId;
+      console.debug('Saved workshop locally / offline:', error);
     }
+    return newId;
   },
 
   updateWorkshop: async (
@@ -278,17 +283,13 @@ export const workshopService = {
     }
 
     try {
-      const docRef = doc(db, COLLECTION_NAME, id);
-      const payload: Record<string, any> = {
-        ...updates,
-        updatedBy: user.id,
-        updatedByName: user.displayName,
-        updatedAt: new Date().toISOString(),
-      };
-      delete payload.id;
-      await updateDoc(docRef, payload);
+      await fetch(`/api/workshops/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
     } catch (error) {
-      console.warn('Updated workshop locally:', error);
+      console.debug('Updated workshop API notice:', error);
     }
   },
 
@@ -307,9 +308,9 @@ export const workshopService = {
     notifySubscribers(updatedList);
 
     try {
-      await deleteDoc(doc(db, COLLECTION_NAME, id));
-    } catch (error) {
-      console.warn('Deleted workshop locally:', error);
+      await fetch(`/api/workshops/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    } catch (e) {
+      console.debug('deleteWorkshop API notice:', e);
     }
   },
 };

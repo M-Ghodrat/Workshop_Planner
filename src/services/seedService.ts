@@ -33,7 +33,12 @@ export const seedService = {
     localStorage.setItem(LOCAL_STORAGE_KEYS.mappings, JSON.stringify(INITIAL_MAPPINGS));
     localStorage.setItem(LOCAL_STORAGE_KEYS.materials, JSON.stringify(INITIAL_MATERIALS));
 
-    // 2. Persist to Firestore if online & authenticated
+    // 2. Persist to server database
+    try {
+      await fetch('/api/reset-database', { method: 'POST' });
+    } catch {}
+
+    // 3. Persist to Firestore if online & authenticated
     try {
       for (const u of INITIAL_USERS) {
         await setDoc(doc(db, 'users', u.id), u, { merge: true });

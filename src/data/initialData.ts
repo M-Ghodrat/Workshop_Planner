@@ -94,31 +94,6 @@ export const INITIAL_SERIES: WorkshopSeries[] = [
     updatedAt: '2026-02-01T10:00:00.000Z',
   },
   {
-    id: 'series-pm-02',
-    name: 'Project Management & Agile Operations',
-    prefix: 'PM',
-    description: 'Modern agile methodologies, Scrum frameworks, sprint planning, and cross-functional team execution.',
-    coreFocus: 'Industry-standard project leadership, risk mitigation, and continuous delivery pipelines.',
-    leadId: 'lead_komil_mamajanov',
-    leadName: 'Komil Mamajanov',
-    leadEmail: 'komil.mamajanov@ucanwest.ca',
-    leadIds: ['lead_komil_mamajanov'],
-    leads: [
-      { id: 'lead_komil_mamajanov', name: 'Komil Mamajanov', email: 'komil.mamajanov@ucanwest.ca', department: 'Administration & Governance' },
-    ],
-    workshopCount: 1,
-    workshopIds: ['ws-pm-654'],
-    status: 'Active',
-    learningOutcomes: [
-      { id: 'slo-pm-1', code: 'LO1', text: 'Formulate sprint schedules and agile backlog grooming strategies.', bloomLevel: 'Create' },
-      { id: 'slo-pm-2', code: 'LO2', text: 'Analyze team velocity metrics and project risk profiles.', bloomLevel: 'Analyze' },
-    ],
-    createdBy: 'admin_orkhon_erdenebaatar',
-    createdByName: 'Orkhon Erdenebaatar',
-    createdAt: '2026-01-16T09:00:00.000Z',
-    updatedAt: '2026-02-01T10:00:00.000Z',
-  },
-  {
     id: 'series-entr-03',
     name: 'Tech Entrepreneurship & Venture Design',
     prefix: 'ENTR',
@@ -141,56 +116,6 @@ export const INITIAL_SERIES: WorkshopSeries[] = [
     createdBy: 'admin_orkhon_erdenebaatar',
     createdByName: 'Orkhon Erdenebaatar',
     createdAt: '2026-01-18T09:00:00.000Z',
-    updatedAt: '2026-02-01T10:00:00.000Z',
-  },
-  {
-    id: 'series-data-04',
-    name: 'Business Analytics & Data Science',
-    prefix: 'DATA',
-    description: 'Data storytelling, business intelligence dashboards, statistical forecasting, and Python data analysis.',
-    coreFocus: 'Extracting actionable decision-making intelligence from multi-dimensional structured and unstructured datasets.',
-    leadId: 'lead_amirhossein_zaji',
-    leadName: 'Amirhossein Zaji',
-    leadEmail: 'amirhossein.zaji@ucanwest.ca',
-    leadIds: ['lead_amirhossein_zaji'],
-    leads: [
-      { id: 'lead_amirhossein_zaji', name: 'Amirhossein Zaji', email: 'amirhossein.zaji@ucanwest.ca', department: 'Department of Analytics' },
-    ],
-    workshopCount: 1,
-    workshopIds: ['ws-data-610'],
-    status: 'Active',
-    learningOutcomes: [
-      { id: 'slo-data-1', code: 'LO1', text: 'Construct interactive business intelligence dashboards in Tableau & PowerBI.', bloomLevel: 'Create' },
-      { id: 'slo-data-2', code: 'LO2', text: 'Evaluate predictive regression and classification models on corporate datasets.', bloomLevel: 'Evaluate' },
-    ],
-    createdBy: 'admin_orkhon_erdenebaatar',
-    createdByName: 'Orkhon Erdenebaatar',
-    createdAt: '2026-01-20T09:00:00.000Z',
-    updatedAt: '2026-02-01T10:00:00.000Z',
-  },
-  {
-    id: 'series-cloud-05',
-    name: 'Applied Cloud Architecture & DevOps',
-    prefix: 'CLOUD',
-    description: 'Serverless deployment, microservices containerization with Docker and Kubernetes, and CI/CD pipelines.',
-    coreFocus: 'Designing scalable, resilient multi-cloud infrastructure and automated delivery systems.',
-    leadId: 'lead_mohsen_ghodrat',
-    leadName: 'Mohsen Ghodrat',
-    leadEmail: 'mohsen.ghodrat@ucanwest.ca',
-    leadIds: ['lead_mohsen_ghodrat'],
-    leads: [
-      { id: 'lead_mohsen_ghodrat', name: 'Mohsen Ghodrat', email: 'mohsen.ghodrat@ucanwest.ca', department: 'School of Business & Technology' },
-    ],
-    workshopCount: 1,
-    workshopIds: ['ws-cloud-630'],
-    status: 'Active',
-    learningOutcomes: [
-      { id: 'slo-cloud-1', code: 'LO1', text: 'Architect cloud infrastructure utilizing containerization patterns.', bloomLevel: 'Create' },
-      { id: 'slo-cloud-2', code: 'LO2', text: 'Configure automated continuous integration and continuous deployment pipelines.', bloomLevel: 'Apply' },
-    ],
-    createdBy: 'admin_orkhon_erdenebaatar',
-    createdByName: 'Orkhon Erdenebaatar',
-    createdAt: '2026-01-22T09:00:00.000Z',
     updatedAt: '2026-02-01T10:00:00.000Z',
   },
 ];
@@ -374,76 +299,6 @@ export const INITIAL_WORKSHOPS: Workshop[] = [
     updatedAt: '2026-02-12T15:00:00.000Z',
   },
   {
-    id: 'ws-pm-654',
-    prefix: 'PM',
-    code: '654',
-    title: 'Agile Sprint Management & Jira Operations',
-    description: 'Master practical sprint planning, user story mapping, story point estimation, retrospective ceremonies, and Jira software configuration.',
-    level: 'Practitioner',
-    seriesId: 'series-pm-02',
-    seriesName: 'Project Management & Agile Operations',
-    status: 'Approved',
-    totalDurationMinutes: 150,
-    assignedDeveloperIds: ['lead_komil_mamajanov'],
-    assignedDevelopers: [
-      { id: 'lead_komil_mamajanov', name: 'Komil Mamajanov', email: 'komil.mamajanov@ucanwest.ca', role: 'project_lead' },
-    ],
-    learningOutcomes: [
-      { id: 'wlo-7', code: 'LO1', text: 'Break down complex epics into actionable, testable user stories with acceptance criteria.', bloomLevel: 'Create' },
-      { id: 'wlo-8', code: 'LO2', text: 'Facilitate agile ceremonies including sprint planning, standups, and retrospectives.', bloomLevel: 'Apply' },
-    ],
-    topics: [
-      {
-        id: 't-7',
-        order: 1,
-        title: 'Agile Frameworks & Scrum Lifecycle',
-        description: 'Scrum roles, artifacts, ceremonies, and Kanban flow principles.',
-        durationMinutes: 60,
-        subtopics: [
-          { id: 'st-11', title: 'User Story Mapping & Backlog Prioritization', durationMinutes: 30 },
-          { id: 'st-12', title: 'Planning Poker & Estimation Techniques', durationMinutes: 30 },
-        ],
-      },
-      {
-        id: 't-8',
-        order: 2,
-        title: 'Jira Software Live Simulation',
-        description: 'Configuring Scrum boards, sprint workflows, roadmaps, and burndown charts.',
-        durationMinutes: 90,
-        subtopics: [
-          { id: 'st-13', title: 'Sprint Setup & Issue Transitions', durationMinutes: 45 },
-          { id: 'st-14', title: 'Velocity Tracking & Release Management', durationMinutes: 45 },
-        ],
-      },
-    ],
-    activities: [
-      {
-        id: 'act-4',
-        order: 1,
-        title: 'Live Sprint Simulation & Retrospective',
-        type: 'Simulation',
-        description: 'Participate in a timed multi-team sprint simulation resolving blockers and sprint goals.',
-        estimatedMinutes: 45,
-      },
-    ],
-    requiredResources: [
-      { id: 'res-5', title: 'Jira Agile Sprint Template', description: 'Pre-configured backlog and sprint board template.' },
-    ],
-    optionalResources: [],
-    dimensionsOfKnowledge: {
-      depthAndBreadth: 'r',
-      methodologiesAndResearch: 'r',
-      applicationOfKnowledge: 'm',
-      communicationSkills: 'm',
-      awarenessOfLimits: 'i',
-      professionalCapacity: 'm',
-    },
-    createdBy: 'lead_komil_mamajanov',
-    createdByName: 'Komil Mamajanov',
-    createdAt: '2026-02-02T10:00:00.000Z',
-    updatedAt: '2026-02-14T09:00:00.000Z',
-  },
-  {
     id: 'ws-entr-620',
     prefix: 'ENTR',
     code: '620',
@@ -513,225 +368,58 @@ export const INITIAL_WORKSHOPS: Workshop[] = [
     createdAt: '2026-02-05T10:00:00.000Z',
     updatedAt: '2026-02-15T11:00:00.000Z',
   },
-  {
-    id: 'ws-data-610',
-    prefix: 'DATA',
-    code: '610',
-    title: 'Big Data Processing with Python & SQL',
-    description: 'Advanced SQL window functions, distributed data transformations with Pandas and PySpark, and enterprise reporting pipelines.',
-    level: 'Practitioner',
-    seriesId: 'series-data-04',
-    seriesName: 'Business Analytics & Data Science',
-    status: 'Approved',
-    totalDurationMinutes: 180,
-    assignedDeveloperIds: ['lead_amirhossein_zaji'],
-    assignedDevelopers: [
-      { id: 'lead_amirhossein_zaji', name: 'Amirhossein Zaji', email: 'amirhossein.zaji@ucanwest.ca', role: 'workshop_lead' },
-    ],
-    learningOutcomes: [
-      { id: 'wlo-11', code: 'LO1', text: 'Execute complex SQL analytical queries with CTEs and window partitioning.', bloomLevel: 'Apply' },
-      { id: 'wlo-12', code: 'LO2', text: 'Construct scalable ETL pipelines using Python and cloud database connections.', bloomLevel: 'Create' },
-    ],
-    topics: [
-      {
-        id: 't-11',
-        order: 1,
-        title: 'Advanced Analytical SQL Queries',
-        description: 'Window functions, rank, dense rank, lead, lag, and recursive CTEs.',
-        durationMinutes: 80,
-        subtopics: [
-          { id: 'st-19', title: 'Cohort Retention & LTV SQL Modeling', durationMinutes: 40 },
-          { id: 'st-20', title: 'Query Optimization & Indexing', durationMinutes: 40 },
-        ],
-      },
-      {
-        id: 't-12',
-        order: 2,
-        title: 'Automated Python Data Pipelines',
-        description: 'Connecting to REST APIs and automating daily data transformation jobs.',
-        durationMinutes: 100,
-        subtopics: [
-          { id: 'st-21', title: 'Pandas Vectorized Transformations', durationMinutes: 50 },
-          { id: 'st-22', title: 'Automated Data Quality Validation', durationMinutes: 50 },
-        ],
-      },
-    ],
-    activities: [
-      {
-        id: 'act-6',
-        order: 1,
-        title: 'E-Commerce Analytics Pipeline Challenge',
-        type: 'Hands-on Lab',
-        description: 'Ingest 100,000 transaction rows, clean missing values, and calculate monthly revenue metrics.',
-        estimatedMinutes: 50,
-      },
-    ],
-    requiredResources: [
-      { id: 'res-7', title: 'SQL Advanced Functions Cheat Sheet', description: 'Reference for ranking and lead/lag functions.' },
-    ],
-    optionalResources: [],
-    dimensionsOfKnowledge: {
-      depthAndBreadth: 'm',
-      methodologiesAndResearch: 'm',
-      applicationOfKnowledge: 'm',
-      communicationSkills: 'r',
-      awarenessOfLimits: 'i',
-      professionalCapacity: 'm',
-    },
-    createdBy: 'lead_amirhossein_zaji',
-    createdByName: 'Amirhossein Zaji',
-    createdAt: '2026-02-06T10:00:00.000Z',
-    updatedAt: '2026-02-16T12:00:00.000Z',
-  },
-  {
-    id: 'ws-cloud-630',
-    prefix: 'CLOUD',
-    code: '630',
-    title: 'Multi-Cloud Deployment & Kubernetes Orchestration',
-    description: 'Docker container creation, Docker Compose multi-service architecture, Kubernetes deployment manifests, and autoscaling pods.',
-    level: 'Professional',
-    seriesId: 'series-cloud-05',
-    seriesName: 'Applied Cloud Architecture & DevOps',
-    status: 'In Development',
-    totalDurationMinutes: 180,
-    assignedDeveloperIds: ['lead_mohsen_ghodrat'],
-    assignedDevelopers: [
-      { id: 'lead_mohsen_ghodrat', name: 'Mohsen Ghodrat', email: 'mohsen.ghodrat@ucanwest.ca', role: 'workshop_lead' },
-    ],
-    learningOutcomes: [
-      { id: 'wlo-13', code: 'LO1', text: 'Build optimized container images using multi-stage Docker builds.', bloomLevel: 'Create' },
-      { id: 'wlo-14', code: 'LO2', text: 'Deploy resilient services to Kubernetes clusters with health probes.', bloomLevel: 'Apply' },
-    ],
-    topics: [
-      {
-        id: 't-13',
-        order: 1,
-        title: 'Containerization with Docker',
-        description: 'Images, layers, volumes, and networking in container runtimes.',
-        durationMinutes: 80,
-        subtopics: [
-          { id: 'st-23', title: 'Dockerfile Optimization', durationMinutes: 40 },
-          { id: 'st-24', title: 'Multi-Container Compose Networks', durationMinutes: 40 },
-        ],
-      },
-      {
-        id: 't-14',
-        order: 2,
-        title: 'Kubernetes Pod & Service Orchestration',
-        description: 'Deployments, services, ingress controllers, and horizontal pod autoscaling.',
-        durationMinutes: 100,
-        subtopics: [
-          { id: 'st-25', title: 'K8s Manifest Declarations', durationMinutes: 50 },
-          { id: 'st-26', title: 'Rolling Updates and Canary Deployments', durationMinutes: 50 },
-        ],
-      },
-    ],
-    activities: [
-      {
-        id: 'act-7',
-        order: 1,
-        title: 'Zero-Downtime Microservice Deployment Lab',
-        type: 'Hands-on Lab',
-        description: 'Deploy a Node.js REST API with Redis cache to a local Minikube cluster and execute a rolling update without dropping active requests.',
-        estimatedMinutes: 60,
-      },
-    ],
-    requiredResources: [
-      { id: 'res-8', title: 'Kubernetes Manifest Templates', description: 'Deployment and Service YAML specifications.' },
-    ],
-    optionalResources: [],
-    dimensionsOfKnowledge: {
-      depthAndBreadth: 'm',
-      methodologiesAndResearch: 'm',
-      applicationOfKnowledge: 'm',
-      communicationSkills: 'r',
-      awarenessOfLimits: 'r',
-      professionalCapacity: 'm',
-    },
-    createdBy: 'lead_mohsen_ghodrat',
-    createdByName: 'Mohsen Ghodrat',
-    createdAt: '2026-02-08T10:00:00.000Z',
-    updatedAt: '2026-02-18T13:00:00.000Z',
-  },
 ];
 
 export const INITIAL_COURSES: Course[] = [
   {
-    id: 'course-cpsc-110',
-    prefix: 'CPSC',
-    name: 'Introduction to Computer Science & Problem Solving',
-    description: 'Foundations of computational thinking, algorithms, modular programming, and data structures. Prepares students for advanced software engineering and applied AI systems.',
-    courseOutline: `Week 1: Algorithmic Thinking & Flowcharting
-Week 2: Data Types, Variables, and Control Flow
-Week 3: Functions, Modular Architecture, and Scope
-Week 4: Lists, Dictionaries, and Composite Data Structures
-Week 5: Object-Oriented Programming (OOP) Core Concepts
-Week 6: File I/O, Error Handling, and Logging
-Week 7: Midterm Assessment & Practical Coding Exam
-Week 8: Algorithm Complexity & Big-O Notation
-Week 9: Sorting and Searching Algorithms
-Week 10: Introduction to APIs and Web Data Scraping
-Week 11: Applied Machine Learning & Data Processing
-Week 12: Final Capstone Project Presentation`,
-    seriesIds: ['series-ai-01', 'series-cloud-05'],
+    id: 'course-busi-654',
+    prefix: 'BUSI',
+    name: 'BUSI 654: Advanced Project Strategy & Venture Commercialization',
+    description: 'Advanced strategic project frameworks, enterprise technology commercialization, agile product management, and cross-functional venture execution.',
+    courseOutline: `Week 1: Strategic Project Leadership & Technology Commercialization
+Week 2: Agile Product Architecture & Cross-Functional Governance
+Week 3: Business Model Generation & Market Entry Frameworks
+Week 4: Applied Machine Learning Decision Frameworks in Business
+Week 5: AI Ethics, Risk Governance & Compliance
+Week 6: Midterm Applied Strategy Project Milestone
+Week 7: Lean Product Experimentation & MVP Validation
+Week 8: Technology Commercialization & IP Strategy
+Week 9: Venture Capital Financing, Cap Tables & Valuation
+Week 10: Scaling Digital Ecosystems & Strategic Roadmaps
+Week 11: High-Performing Cross-Functional Team Operations
+Week 12: Executive Capstone Commercialization Defense`,
+    seriesIds: ['series-ai-01', 'series-entr-03'],
     learningOutcomes: [
-      { id: 'clo-cpsc-1', code: 'CO1', text: 'Construct well-structured algorithms to solve complex computational problems.', bloomLevel: 'Create' },
-      { id: 'clo-cpsc-2', code: 'CO2', text: 'Apply modular programming and object-oriented principles in clean code architectures.', bloomLevel: 'Apply' },
-      { id: 'clo-cpsc-3', code: 'CO3', text: 'Evaluate algorithmic time and space complexity using Big-O notations.', bloomLevel: 'Evaluate' },
+      { id: 'clo-busi-654-1', code: 'CO1', text: 'Formulate comprehensive commercialization strategies for tech-driven business initiatives.', bloomLevel: 'Create' },
+      { id: 'clo-busi-654-2', code: 'CO2', text: 'Evaluate emerging AI and automation solutions for operational and strategic business optimization.', bloomLevel: 'Evaluate' },
+      { id: 'clo-busi-654-3', code: 'CO3', text: 'Execute agile governance and strategic roadmap execution across high-performance project teams.', bloomLevel: 'Apply' },
     ],
     createdBy: 'lead_mohsen_ghodrat',
     createdAt: '2026-01-20T10:00:00.000Z',
     updatedAt: '2026-02-01T10:00:00.000Z',
   },
   {
-    id: 'course-busi-640',
+    id: 'course-busi-641',
     prefix: 'BUSI',
-    name: 'Quantitative Analysis & Digital Decision Making',
-    description: 'Strategic data analysis for corporate leaders. Emphasizes statistical forecasting, financial modeling, and evidence-based decision frameworks in competitive markets.',
-    courseOutline: `Week 1: Foundations of Quantitative Business Modeling
-Week 2: Probability Distributions & Decision Trees
-Week 3: Statistical Hypothesis Testing in Market Research
-Week 4: Regression Modeling for Sales & Revenue Forecasting
-Week 5: Optimization Models & Linear Programming
-Week 6: Midterm Strategic Business Case Evaluation
-Week 7: Agile Metrics & Project Resource Allocation
-Week 8: Risk Simulation with Monte Carlo Methods
-Week 9: Predictive Analytics and Machine Learning for Executives
-Week 10: Executive Data Storytelling and Dashboard Design
-Week 11: Digital Transformation Strategy & Ethics
-Week 12: Capstone Strategic Decision Presentation`,
-    seriesIds: ['series-ai-01', 'series-pm-02', 'series-data-04'],
+    name: 'BUSI 641: Entrepreneurial Strategy & Venture Development',
+    description: 'Systematic venture creation, lean startup methodology, customer discovery validation, unit economics modeling, and pitching high-growth business models.',
+    courseOutline: `Week 1: Foundations of Entrepreneurial Opportunity Recognition
+Week 2: Lean Canvas Architecture & Problem-Solution Fit
+Week 3: Customer Discovery Interviews & Rapid Prototyping
+Week 4: Business Model Generation & Revenue Mechanics
+Week 5: Value Proposition Design & Unit Economics
+Week 6: Midterm Venture Pitch & Investor Canvas
+Week 7: Go-to-Market Strategy & Digital Acquisition Channels
+Week 8: AI-Powered Productivity for Early-Stage Startups
+Week 9: Venture Capital Financing & Cap Table Fundamentals
+Week 10: Legal, Intellectual Property & Founder Governance
+Week 11: Growth Metrics & Product-Market Validation
+Week 12: Final Angel & VC Investor Presentation Defense`,
+    seriesIds: ['series-entr-03', 'series-ai-01'],
     learningOutcomes: [
-      { id: 'clo-busi-1', code: 'CO1', text: 'Synthesize complex business metrics into quantitative forecasting models.', bloomLevel: 'Create' },
-      { id: 'clo-busi-2', code: 'CO2', text: 'Analyze market uncertainty using regression and risk simulation techniques.', bloomLevel: 'Analyze' },
-      { id: 'clo-busi-3', code: 'CO3', text: 'Present data-driven strategic recommendations to executive stakeholders.', bloomLevel: 'Apply' },
-    ],
-    createdBy: 'lead_mohsen_ghodrat',
-    createdAt: '2026-01-22T10:00:00.000Z',
-    updatedAt: '2026-02-02T10:00:00.000Z',
-  },
-  {
-    id: 'course-mgmt-601',
-    prefix: 'MGMT',
-    name: 'Strategic Leadership & Venture Innovation',
-    description: 'Developing agile leadership capacity, fostering organizational innovation, orchestrating venture creation, and leading high-performing cross-functional teams.',
-    courseOutline: `Week 1: Principles of Adaptive Leadership & Modern Organizations
-Week 2: Innovation Frameworks & Design Thinking
-Week 3: Customer Centricity & Lean Venture Exploration
-Week 4: Business Model Generation & Value Propositions
-Week 5: Agile Team Governance & Cultural Alignment
-Week 6: Managing Organizational Change & Crisis Management
-Week 7: Venture Capital & Startup Financing Structures
-Week 8: High-Performance Cross-Functional Team Operations
-Week 9: Pitching Innovation to Board & Angel Investors
-Week 10: Digital Ecosystems and Platform Business Models
-Week 11: Corporate Social Responsibility and Ethical Governance
-Week 12: Final Venture Launch Strategy Defense`,
-    seriesIds: ['series-entr-03', 'series-pm-02'],
-    learningOutcomes: [
-      { id: 'clo-mgmt-1', code: 'CO1', text: 'Design lean venture innovation strategies for emerging market opportunities.', bloomLevel: 'Create' },
-      { id: 'clo-mgmt-2', code: 'CO2', text: 'Lead agile cross-functional teams through sprint planning and rapid prototyping.', bloomLevel: 'Apply' },
-      { id: 'clo-mgmt-3', code: 'CO3', text: 'Evaluate strategic risks and venture capital financing options.', bloomLevel: 'Evaluate' },
+      { id: 'clo-busi-641-1', code: 'CO1', text: 'Synthesize customer discovery findings into scalable, validated lean business models.', bloomLevel: 'Create' },
+      { id: 'clo-busi-641-2', code: 'CO2', text: 'Apply financial forecasting and unit economics to assess early-stage venture viability.', bloomLevel: 'Apply' },
+      { id: 'clo-busi-641-3', code: 'CO3', text: 'Present persuasive venture investment proposals to seed and angel investors.', bloomLevel: 'Apply' },
     ],
     createdBy: 'lead_cheryl_thomas',
     createdAt: '2026-01-25T10:00:00.000Z',
@@ -742,58 +430,69 @@ Week 12: Final Venture Launch Strategy Defense`,
 export const INITIAL_MAPPINGS: OutcomeMapping[] = [
   {
     id: 'map-1',
-    courseId: 'course-cpsc-110',
-    courseLoId: 'clo-cpsc-1',
-    targetType: 'workshop',
-    targetId: 'ws-ai-601',
-    targetLoId: 'wlo-1',
+    courseId: 'course-busi-654',
+    courseLoId: 'clo-busi-654-1',
+    targetType: 'series',
+    targetId: 'series-ai-01',
+    targetLoId: 'slo-ai-1',
     matchLevel: 'strong',
     mappedBy: 'lead_mohsen_ghodrat',
     createdAt: '2026-02-01T12:00:00.000Z',
   },
   {
     id: 'map-2',
-    courseId: 'course-cpsc-110',
-    courseLoId: 'clo-cpsc-2',
+    courseId: 'course-busi-654',
+    courseLoId: 'clo-busi-654-2',
     targetType: 'workshop',
-    targetId: 'ws-cloud-630',
-    targetLoId: 'wlo-13',
-    matchLevel: 'partial',
+    targetId: 'ws-ai-601',
+    targetLoId: 'wlo-1',
+    matchLevel: 'strong',
     mappedBy: 'lead_mohsen_ghodrat',
     createdAt: '2026-02-01T12:05:00.000Z',
   },
   {
     id: 'map-3',
-    courseId: 'course-busi-640',
-    courseLoId: 'clo-busi-1',
+    courseId: 'course-busi-654',
+    courseLoId: 'clo-busi-654-3',
     targetType: 'workshop',
-    targetId: 'ws-ai-601',
-    targetLoId: 'wlo-2',
-    matchLevel: 'strong',
+    targetId: 'ws-ai-602',
+    targetLoId: 'wlo-4',
+    matchLevel: 'partial',
     mappedBy: 'lead_mohsen_ghodrat',
-    createdAt: '2026-02-02T12:00:00.000Z',
+    createdAt: '2026-02-01T12:10:00.000Z',
   },
   {
     id: 'map-4',
-    courseId: 'course-busi-640',
-    courseLoId: 'clo-busi-2',
-    targetType: 'workshop',
-    targetId: 'ws-pm-654',
-    targetLoId: 'wlo-7',
-    matchLevel: 'low',
-    mappedBy: 'lead_komil_mamajanov',
-    createdAt: '2026-02-02T12:10:00.000Z',
+    courseId: 'course-busi-641',
+    courseLoId: 'clo-busi-641-1',
+    targetType: 'series',
+    targetId: 'series-entr-03',
+    targetLoId: 'slo-entr-1',
+    matchLevel: 'strong',
+    mappedBy: 'lead_cheryl_thomas',
+    createdAt: '2026-02-02T12:00:00.000Z',
   },
   {
     id: 'map-5',
-    courseId: 'course-mgmt-601',
-    courseLoId: 'clo-mgmt-1',
+    courseId: 'course-busi-641',
+    courseLoId: 'clo-busi-641-2',
     targetType: 'workshop',
     targetId: 'ws-entr-620',
     targetLoId: 'wlo-9',
     matchLevel: 'strong',
     mappedBy: 'lead_cheryl_thomas',
-    createdAt: '2026-02-03T12:00:00.000Z',
+    createdAt: '2026-02-02T12:05:00.000Z',
+  },
+  {
+    id: 'map-6',
+    courseId: 'course-busi-641',
+    courseLoId: 'clo-busi-641-3',
+    targetType: 'series',
+    targetId: 'series-entr-03',
+    targetLoId: 'slo-entr-2',
+    matchLevel: 'strong',
+    mappedBy: 'lead_cheryl_thomas',
+    createdAt: '2026-02-02T12:10:00.000Z',
   },
 ];
 
@@ -829,22 +528,6 @@ export const INITIAL_MATERIALS: Material[] = [
     uploadedBy: 'lead_mohsen_ghodrat',
     uploadedByName: 'Mohsen Ghodrat',
     createdAt: '2026-02-02T11:00:00.000Z',
-  },
-  {
-    id: 'mat-pm-01',
-    title: 'Scrum Sprint Planning & Jira Operational Guide',
-    fileName: 'Agile_Sprint_Playbook.pdf',
-    fileType: 'application/pdf',
-    fileSize: 1850000,
-    category: 'Instructor Guide',
-    description: 'Step-by-step facilitator playbook for conducting agile sprint planning and burndown chart analysis.',
-    downloadUrl: '#',
-    storagePath: 'materials/Agile_Sprint_Playbook.pdf',
-    workshopId: 'ws-pm-654',
-    workshopTitle: 'PM 654 - Agile Sprint Management & Jira Operations',
-    uploadedBy: 'lead_komil_mamajanov',
-    uploadedByName: 'Komil Mamajanov',
-    createdAt: '2026-02-03T09:00:00.000Z',
   },
   {
     id: 'mat-entr-01',

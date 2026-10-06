@@ -90,52 +90,50 @@ export const courseService = {
     courseSubscribers.add(onSuccess);
     onSuccess(getCachedCourses());
 
-    try {
-      const collRef = collection(db, COURSES_COLLECTION);
-      const unsubscribeFirestore = onSnapshot(
-        collRef,
-        (snapshot) => {
-          if (!snapshot.empty) {
-            const list: Course[] = snapshot.docs.map((docSnap) => ({
-              ...(docSnap.data() as Omit<Course, 'id'>),
-              id: docSnap.id,
-            }));
-            notifyCourseSubscribers(list);
-          }
-        },
-        (error) => {
-          console.warn('Courses subscription notice:', error?.message || error);
+    // Fetch from persistent server database
+    fetch('/api/courses')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((list) => {
+        if (Array.isArray(list)) {
+          notifyCourseSubscribers(list);
         }
-      );
+      })
+      .catch((e) => {
+        console.debug('Courses API fetch notice:', e);
+      });
 
-      return () => {
-        courseSubscribers.delete(onSuccess);
-        if (typeof unsubscribeFirestore === 'function') {
-          unsubscribeFirestore();
-        }
-      };
-    } catch (error) {
-      console.warn('Failed to initialize courses subscription:', error);
-      return () => {
-        courseSubscribers.delete(onSuccess);
-      };
+    const onFocus = () => {
+      fetch('/api/courses')
+        .then((res) => (res.ok ? res.json() : null))
+        .then((list) => {
+          if (Array.isArray(list)) notifyCourseSubscribers(list);
+        })
+        .catch(() => {});
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', onFocus);
     }
+
+    return () => {
+      courseSubscribers.delete(onSuccess);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', onFocus);
+      }
+    };
   },
 
   getAllCourses: async (): Promise<Course[]> => {
     try {
-      const collRef = collection(db, COURSES_COLLECTION);
-      const snapshot = await getDocs(collRef);
-      if (!snapshot.empty) {
-        const list: Course[] = snapshot.docs.map((docSnap) => ({
-          ...(docSnap.data() as Omit<Course, 'id'>),
-          id: docSnap.id,
-        }));
-        notifyCourseSubscribers(list);
-        return list;
+      const res = await fetch('/api/courses');
+      if (res.ok) {
+        const list: Course[] = await res.json();
+        if (Array.isArray(list)) {
+          notifyCourseSubscribers(list);
+          return list;
+        }
       }
-    } catch (error) {
-      console.warn('getAllCourses fallback:', error);
+    } catch (e) {
+      console.debug('getAllCourses API notice:', e);
     }
     return getCachedCourses();
   },
@@ -157,12 +155,19 @@ export const courseService = {
     notifyCourseSubscribers([newCourse, ...cached]);
 
     try {
-      const docRef = await addDoc(collection(db, COURSES_COLLECTION), newCourse);
-      return docRef.id;
+      const res = await fetch('/api/courses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newCourse),
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        return saved.id || newId;
+      }
     } catch (error) {
-      console.warn('Created course locally:', error);
-      return newId;
+      console.debug('Created course locally / offline:', error);
     }
+    return newId;
   },
 
   updateCourse: async (
@@ -182,15 +187,13 @@ export const courseService = {
     }
 
     try {
-      const docRef = doc(db, COURSES_COLLECTION, id);
-      const payload: Record<string, any> = {
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      };
-      delete payload.id;
-      await updateDoc(docRef, payload);
+      await fetch(`/api/courses/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
     } catch (error) {
-      console.warn('Updated course locally:', error);
+      console.debug('Updated course API notice:', error);
     }
   },
 
@@ -204,9 +207,9 @@ export const courseService = {
     notifyMappingSubscribers(mappings.filter((m) => m.courseId !== id));
 
     try {
-      await deleteDoc(doc(db, COURSES_COLLECTION, id));
+      await fetch(`/api/courses/${encodeURIComponent(id)}`, { method: 'DELETE' });
     } catch (error) {
-      console.warn('Deleted course locally:', error);
+      console.debug('Deleted course API notice:', error);
     }
   },
 
@@ -223,52 +226,49 @@ export const courseService = {
     mappingSubscribers.add(onSuccess);
     onSuccess(getCachedMappings());
 
-    try {
-      const collRef = collection(db, MAPPINGS_COLLECTION);
-      const unsubscribeFirestore = onSnapshot(
-        collRef,
-        (snapshot) => {
-          if (!snapshot.empty) {
-            const list: OutcomeMapping[] = snapshot.docs.map((docSnap) => ({
-              ...(docSnap.data() as Omit<OutcomeMapping, 'id'>),
-              id: docSnap.id,
-            }));
-            notifyMappingSubscribers(list);
-          }
-        },
-        (error) => {
-          console.warn('Mappings subscription notice:', error?.message || error);
+    fetch('/api/mappings')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((list) => {
+        if (Array.isArray(list)) {
+          notifyMappingSubscribers(list);
         }
-      );
+      })
+      .catch((e) => {
+        console.debug('Mappings API fetch notice:', e);
+      });
 
-      return () => {
-        mappingSubscribers.delete(onSuccess);
-        if (typeof unsubscribeFirestore === 'function') {
-          unsubscribeFirestore();
-        }
-      };
-    } catch (error) {
-      console.warn('Failed to initialize mappings subscription:', error);
-      return () => {
-        mappingSubscribers.delete(onSuccess);
-      };
+    const onFocus = () => {
+      fetch('/api/mappings')
+        .then((res) => (res.ok ? res.json() : null))
+        .then((list) => {
+          if (Array.isArray(list)) notifyMappingSubscribers(list);
+        })
+        .catch(() => {});
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', onFocus);
     }
+
+    return () => {
+      mappingSubscribers.delete(onSuccess);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', onFocus);
+      }
+    };
   },
 
   getAllMappings: async (): Promise<OutcomeMapping[]> => {
     try {
-      const collRef = collection(db, MAPPINGS_COLLECTION);
-      const snapshot = await getDocs(collRef);
-      if (!snapshot.empty) {
-        const list: OutcomeMapping[] = snapshot.docs.map((docSnap) => ({
-          ...(docSnap.data() as Omit<OutcomeMapping, 'id'>),
-          id: docSnap.id,
-        }));
-        notifyMappingSubscribers(list);
-        return list;
+      const res = await fetch('/api/mappings');
+      if (res.ok) {
+        const list: OutcomeMapping[] = await res.json();
+        if (Array.isArray(list)) {
+          notifyMappingSubscribers(list);
+          return list;
+        }
       }
     } catch (error) {
-      console.warn('getAllMappings fallback:', error);
+      console.debug('getAllMappings API notice:', error);
     }
     return getCachedMappings();
   },
@@ -289,11 +289,19 @@ export const courseService = {
     notifyMappingSubscribers([newMapping, ...cached]);
 
     try {
-      const docRef = await addDoc(collection(db, MAPPINGS_COLLECTION), newMapping);
-      return docRef.id;
+      const res = await fetch('/api/mappings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newMapping),
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        return saved.id || newId;
+      }
     } catch {
       return newId;
     }
+    return newId;
   },
 
   deleteMapping: async (id: string): Promise<void> => {
@@ -301,7 +309,7 @@ export const courseService = {
     notifyMappingSubscribers(cached.filter((m) => m.id !== id));
 
     try {
-      await deleteDoc(doc(db, MAPPINGS_COLLECTION, id));
+      await fetch(`/api/mappings/${encodeURIComponent(id)}`, { method: 'DELETE' });
     } catch {
       // Local fallback handled silently
     }
@@ -338,9 +346,10 @@ export const courseService = {
       notifyMappingSubscribers(updatedList);
 
       try {
-        await updateDoc(doc(db, MAPPINGS_COLLECTION, existing.id), {
-          matchLevel: mappingData.matchLevel,
-          mappedBy: user.id,
+        await fetch(`/api/mappings/${encodeURIComponent(existing.id)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchLevel: mappingData.matchLevel, mappedBy: user.id }),
         });
       } catch {
         // Local fallback handled silently

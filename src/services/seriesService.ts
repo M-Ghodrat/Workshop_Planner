@@ -17,13 +17,15 @@ import { INITIAL_SERIES } from '../data/initialData';
 const COLLECTION_NAME = 'workshopSeries';
 const LOCAL_STORAGE_KEY = 'ucw_cached_series';
 const DELETED_SERIES_KEY = 'ucw_deleted_series_ids';
+const LEGACY_DELETED_SERIES_IDS = ['series-pm-02', 'series-data-04', 'series-cloud-05'];
 
 export const getStoredDeletedSeriesIds = (): string[] => {
   try {
     const raw = localStorage.getItem(DELETED_SERIES_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.from(new Set([...LEGACY_DELETED_SERIES_IDS, ...(Array.isArray(parsed) ? parsed : [])]));
   } catch {
-    return [];
+    return [...LEGACY_DELETED_SERIES_IDS];
   }
 };
 
@@ -88,61 +90,50 @@ export const seriesService = {
     const initial = getCachedSeries();
     onSuccess(initial);
 
-    try {
-      const collRef = collection(db, COLLECTION_NAME);
-      const q = query(collRef, orderBy('createdAt', 'desc'));
-
-      const unsubscribeFirestore = onSnapshot(
-        q,
-        (snapshot) => {
-          const deletedIds = getStoredDeletedSeriesIds();
-          const list: WorkshopSeries[] = snapshot.docs
-            .map((docSnap) => ({
-              ...(docSnap.data() as Omit<WorkshopSeries, 'id'>),
-              id: docSnap.id,
-            }))
-            .filter((s) => s.id && !deletedIds.includes(s.id));
-
-          if (list.length > 0 || !snapshot.empty) {
-            notifySubscribers(list);
-          }
-        },
-        (error) => {
-          console.warn('Series subscription fallback to local cache:', error?.message || error);
+    // Fetch from persistent server database
+    fetch('/api/series')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((list) => {
+        if (Array.isArray(list)) {
+          notifySubscribers(list);
         }
-      );
+      })
+      .catch((e) => {
+        console.debug('Series API fetch notice:', e);
+      });
 
-      return () => {
-        subscribers.delete(onSuccess);
-        if (typeof unsubscribeFirestore === 'function') {
-          unsubscribeFirestore();
-        }
-      };
-    } catch (error) {
-      console.warn('Failed to initialize series subscription:', error);
-      return () => {
-        subscribers.delete(onSuccess);
-      };
+    const onFocus = () => {
+      fetch('/api/series')
+        .then((res) => (res.ok ? res.json() : null))
+        .then((list) => {
+          if (Array.isArray(list)) notifySubscribers(list);
+        })
+        .catch(() => {});
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', onFocus);
     }
+
+    return () => {
+      subscribers.delete(onSuccess);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', onFocus);
+      }
+    };
   },
 
   getAllSeries: async (): Promise<WorkshopSeries[]> => {
-    const deletedIds = getStoredDeletedSeriesIds();
     try {
-      const collRef = collection(db, COLLECTION_NAME);
-      const snapshot = await getDocs(collRef);
-      if (!snapshot.empty) {
-        const list: WorkshopSeries[] = snapshot.docs
-          .map((docSnap) => ({
-            ...(docSnap.data() as Omit<WorkshopSeries, 'id'>),
-            id: docSnap.id,
-          }))
-          .filter((s) => s.id && !deletedIds.includes(s.id));
-        notifySubscribers(list);
-        return list;
+      const res = await fetch('/api/series');
+      if (res.ok) {
+        const list: WorkshopSeries[] = await res.json();
+        if (Array.isArray(list)) {
+          notifySubscribers(list);
+          return list;
+        }
       }
-    } catch (error) {
-      console.warn('getAllSeries fallback:', error);
+    } catch (e) {
+      console.debug('getAllSeries API notice:', e);
     }
     return getCachedSeries();
   },
@@ -152,14 +143,16 @@ export const seriesService = {
     if (deletedIds.includes(id)) return null;
 
     try {
-      const docRef = doc(db, COLLECTION_NAME, id);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        return { ...(snap.data() as Omit<WorkshopSeries, 'id'>), id: snap.id };
+      const res = await fetch('/api/series');
+      if (res.ok) {
+        const list: WorkshopSeries[] = await res.json();
+        const found = list.find((s) => s.id === id);
+        if (found) return found;
       }
-    } catch (error) {
-      console.warn('getSeriesById fallback:', error);
+    } catch (e) {
+      console.debug('getSeriesById API notice:', e);
     }
+
     const cached = getCachedSeries();
     return cached.find((s) => s.id === id) || null;
   },
@@ -191,12 +184,19 @@ export const seriesService = {
     notifySubscribers([newSeries, ...cached]);
 
     try {
-      await setDoc(doc(db, COLLECTION_NAME, newId), newSeries);
-      return newId;
+      const res = await fetch('/api/series', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSeries),
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        return saved.id || newId;
+      }
     } catch (error) {
-      console.warn('Created series locally:', error);
-      return newId;
+      console.debug('Created series locally / offline:', error);
     }
+    return newId;
   },
 
   updateSeries: async (
@@ -227,18 +227,13 @@ export const seriesService = {
     }
 
     try {
-      const docRef = doc(db, COLLECTION_NAME, id);
-      const payload: Record<string, any> = {
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      };
-      if (updates.workshopIds) {
-        payload.workshopCount = updates.workshopIds.length;
-      }
-      delete payload.id;
-      await updateDoc(docRef, payload);
+      await fetch(`/api/series/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
     } catch (error) {
-      console.warn('Updated series locally:', error);
+      console.debug('Updated series API notice:', error);
     }
   },
 
@@ -255,11 +250,11 @@ export const seriesService = {
     const updatedList = cached.filter((s) => s.id !== id);
     notifySubscribers(updatedList);
 
-    // 3. Attempt Firestore deletion
+    // 3. Persist deletion in server database on disk
     try {
-      await deleteDoc(doc(db, COLLECTION_NAME, id));
-    } catch (error) {
-      console.warn('Deleted series locally:', error);
+      await fetch(`/api/series/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    } catch (e) {
+      console.debug('deleteSeries API notice:', e);
     }
   },
 };
