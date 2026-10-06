@@ -1,6 +1,23 @@
-import { collection, doc, setDoc, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, getDocs, collection } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { Workshop, WorkshopSeries, UserProfile } from '../types';
+import { UserProfile } from '../types';
+import {
+  INITIAL_USERS,
+  INITIAL_SERIES,
+  INITIAL_WORKSHOPS,
+  INITIAL_COURSES,
+  INITIAL_MAPPINGS,
+  INITIAL_MATERIALS,
+} from '../data/initialData';
+
+const LOCAL_STORAGE_KEYS = {
+  workshops: 'ucw_cached_workshops',
+  series: 'ucw_cached_series',
+  courses: 'ucw_cached_courses',
+  mappings: 'ucw_cached_mappings',
+  materials: 'ucw_cached_materials',
+  users: 'ucw_cached_users',
+};
 
 export const seedService = {
   seedSampleData: async (currentUserProfile?: UserProfile | null): Promise<void> => {
@@ -8,87 +25,36 @@ export const seedService = {
   },
 
   seedInitialData: async (currentUserProfile?: UserProfile | null): Promise<void> => {
-    const creatorId = currentUserProfile?.id || 'demo-admin-ucw-01';
+    // 1. Always update local storage first so UI has instant access
+    localStorage.setItem(LOCAL_STORAGE_KEYS.users, JSON.stringify(INITIAL_USERS));
+    localStorage.setItem(LOCAL_STORAGE_KEYS.series, JSON.stringify(INITIAL_SERIES));
+    localStorage.setItem(LOCAL_STORAGE_KEYS.workshops, JSON.stringify(INITIAL_WORKSHOPS));
+    localStorage.setItem(LOCAL_STORAGE_KEYS.courses, JSON.stringify(INITIAL_COURSES));
+    localStorage.setItem(LOCAL_STORAGE_KEYS.mappings, JSON.stringify(INITIAL_MAPPINGS));
+    localStorage.setItem(LOCAL_STORAGE_KEYS.materials, JSON.stringify(INITIAL_MATERIALS));
 
-    // 1. Wipe old data from Firestore to ensure a completely pristine layout
-    const collectionsToClear = ['workshops', 'workshopSeries', 'users', 'materials'];
-    for (const collName of collectionsToClear) {
-      try {
-        const snap = await getDocs(collection(db, collName));
-        const batch = writeBatch(db);
-        snap.docs.forEach((docSnap) => {
-          // Keep current active admin/developer session user so they aren't signed out
-          if (collName === 'users' && docSnap.id === creatorId) {
-            return;
-          }
-          batch.delete(docSnap.ref);
-        });
-        await batch.commit();
-      } catch (e) {
-        console.warn(`Could not clear collection ${collName}:`, e);
+    // 2. Persist to Firestore if online & authenticated
+    try {
+      for (const u of INITIAL_USERS) {
+        await setDoc(doc(db, 'users', u.id), u, { merge: true });
       }
+      for (const s of INITIAL_SERIES) {
+        if (s.id) await setDoc(doc(db, 'workshopSeries', s.id), s, { merge: true });
+      }
+      for (const w of INITIAL_WORKSHOPS) {
+        if (w.id) await setDoc(doc(db, 'workshops', w.id), w, { merge: true });
+      }
+      for (const c of INITIAL_COURSES) {
+        if (c.id) await setDoc(doc(db, 'courses', c.id), c, { merge: true });
+      }
+      for (const m of INITIAL_MAPPINGS) {
+        if (m.id) await setDoc(doc(db, 'outcome_mappings', m.id), m, { merge: true });
+      }
+      for (const mat of INITIAL_MATERIALS) {
+        if (mat.id) await setDoc(doc(db, 'materials', mat.id), mat, { merge: true });
+      }
+    } catch (err) {
+      console.warn('Firestore seeding notice (cached locally):', err);
     }
-
-    // 2. Seed Clean Faculty Developers list as requested
-    const demoDevelopers: UserProfile[] = [
-      {
-        id: 'demo-admin-ucw-01',
-        email: 'admin@ucanwest.ca',
-        displayName: 'Administrator',
-        role: 'administrator',
-        department: 'Administration & Governance',
-        assignedWorkshopCount: 0,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'admin_komil_mamajanov',
-        email: 'komil.mamajanov@ucanwest.ca',
-        displayName: 'Komil Mamajanov',
-        role: 'administrator',
-        department: 'Administration & Governance',
-        assignedWorkshopCount: 0,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'lead_mohsen_ghodrat',
-        email: 'mohsen.ghodrat@ucanwest.ca',
-        displayName: 'Mohsen Ghodrat',
-        role: 'workshop_lead',
-        department: 'School of Business & Technology',
-        assignedWorkshopCount: 0,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'lead_cheryl_thomas',
-        email: 'cheryl.thomas@ucanwest.ca',
-        displayName: 'Cheryl Thomas',
-        role: 'workshop_lead',
-        department: 'Department of Management',
-        assignedWorkshopCount: 0,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'lead_amirhossein_zaji',
-        email: 'amirhossein.zaji@ucanwest.ca',
-        displayName: 'Amirhossein Zaji',
-        role: 'workshop_lead',
-        department: 'Department of Analytics',
-        assignedWorkshopCount: 0,
-        createdAt: new Date().toISOString(),
-      },
-      {
-        id: 'dev_faculty_member',
-        email: 'developer@ucanwest.ca',
-        displayName: 'Developer',
-        role: 'developer',
-        department: 'Curriculum Development',
-        assignedWorkshopCount: 0,
-        createdAt: new Date().toISOString(),
-      },
-    ];
-
-    for (const dev of demoDevelopers) {
-      await setDoc(doc(db, 'users', dev.id), dev, { merge: true });
-    }
-  }
+  },
 };

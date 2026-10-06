@@ -45,7 +45,7 @@ type PendingAction =
   | null;
 
 const MainApp: React.FC = () => {
-  const { userProfile, loading, isAuthenticated, logout } = useAuth();
+  const { userProfile, currentUser, loading, isAuthenticated, logout } = useAuth();
   const { info } = useToast();
 
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
@@ -102,7 +102,7 @@ const MainApp: React.FC = () => {
     []
   );
 
-  // Load Firestore data with real-time listeners and initial sample data seeding if needed
+  // Load Firestore data with real-time listeners when authenticated
   useEffect(() => {
     if (!isAuthenticated || !userProfile) return;
 
@@ -150,7 +150,7 @@ const MainApp: React.FC = () => {
       if (typeof unsubscribeCourses === 'function') unsubscribeCourses();
       if (typeof unsubscribeMappings === 'function') unsubscribeMappings();
     };
-  }, [isAuthenticated, userProfile]);
+  }, [isAuthenticated, userProfile, currentUser]);
 
   if (loading) {
     return (
@@ -424,6 +424,7 @@ const MainApp: React.FC = () => {
           viewMode={workshopViewMode}
           onSelectWorkshop={handleSelectWorkshopFromCatalog}
           onOpenCreateWorkshop={handleOpenCreateWorkshop}
+          onWorkshopsUpdated={(updated) => setWorkshops(updated)}
         />
       )}
 
@@ -468,8 +469,11 @@ const MainApp: React.FC = () => {
         <SeriesList
           series={series}
           workshops={workshops}
+          users={users}
           onSelectWorkshop={handleSelectWorkshopFromCatalog}
           onOpenCreateWorkshop={handleOpenCreateWorkshop}
+          onSeriesUpdated={(updated) => setSeries(updated)}
+          onWorkshopsUpdated={(updated) => setWorkshops(updated)}
         />
       )}
 

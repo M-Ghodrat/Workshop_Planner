@@ -7,15 +7,77 @@ import {
   updateDoc,
   deleteDoc,
   query,
-  where,
   orderBy,
   onSnapshot,
-  serverTimestamp,
 } from 'firebase/firestore';
-import { db, handleFirestoreError } from '../config/firebase';
-import { Workshop, UserProfile, OperationType, AssignedDeveloper, WorkshopStatus } from '../types';
+import { db } from '../config/firebase';
+import { Workshop, UserProfile, WorkshopStatus } from '../types';
+import { INITIAL_WORKSHOPS } from '../data/initialData';
 
 const COLLECTION_NAME = 'workshops';
+const LOCAL_STORAGE_KEY = 'ucw_cached_workshops';
+const DELETED_WORKSHOPS_KEY = 'ucw_deleted_workshop_ids';
+
+export const getStoredDeletedWorkshopIds = (): string[] => {
+  try {
+    const raw = localStorage.getItem(DELETED_WORKSHOPS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const addStoredDeletedWorkshopId = (id: string) => {
+  try {
+    const deleted = getStoredDeletedWorkshopIds();
+    if (!deleted.includes(id)) {
+      deleted.push(id);
+      localStorage.setItem(DELETED_WORKSHOPS_KEY, JSON.stringify(deleted));
+    }
+  } catch (e) {
+    console.warn('Could not store deleted workshop id:', e);
+  }
+};
+
+const getCachedWorkshops = (): Workshop[] => {
+  const deletedIds = getStoredDeletedWorkshopIds();
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((w) => w.id && !deletedIds.includes(w.id));
+      }
+    }
+  } catch {}
+  const seeded = INITIAL_WORKSHOPS.filter((w) => w.id && !deletedIds.includes(w.id));
+  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(seeded));
+  return seeded;
+};
+
+const saveCachedWorkshops = (list: Workshop[]) => {
+  try {
+    const deletedIds = getStoredDeletedWorkshopIds();
+    const cleanList = list.filter((w) => w.id && !deletedIds.includes(w.id));
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cleanList));
+  } catch {}
+};
+
+type WorkshopSubscriber = (workshops: Workshop[]) => void;
+const subscribers = new Set<WorkshopSubscriber>();
+
+function notifySubscribers(list: Workshop[]) {
+  const deletedIds = getStoredDeletedWorkshopIds();
+  const cleanList = list.filter((w) => w.id && !deletedIds.includes(w.id));
+  saveCachedWorkshops(cleanList);
+  subscribers.forEach((cb) => {
+    try {
+      cb(cleanList);
+    } catch (e) {
+      console.warn('Workshop subscriber notice:', e);
+    }
+  });
+}
 
 const sanitizeWorkshop = (w: Workshop): Workshop => {
   let createdByName = w.createdByName;
@@ -50,146 +112,171 @@ const sanitizeWorkshop = (w: Workshop): Workshop => {
     status: status || 'In Development',
     createdByName,
     updatedByName,
-    assignedDevelopers,
+    assignedDevelopers: assignedDevelopers || [],
   };
 };
 
 export const workshopService = {
-  // Subscribe to workshops
   subscribeWorkshops: (
     onSuccess: (workshops: Workshop[]) => void,
     onError?: (err: any) => void,
     userId?: string,
     isAdmin?: boolean
   ) => {
+    subscribers.add(onSuccess);
+    const cached = getCachedWorkshops();
+    if (!isAdmin && userId) {
+      const filtered = cached.filter(
+        (w) =>
+          w.createdBy === userId ||
+          (Array.isArray(w.assignedDeveloperIds) && w.assignedDeveloperIds.includes(userId)) ||
+          w.status === 'Approved'
+      );
+      onSuccess(filtered);
+    } else {
+      onSuccess(cached);
+    }
+
     try {
       const collRef = collection(db, COLLECTION_NAME);
-      let q = query(collRef, orderBy('updatedAt', 'desc'));
+      const q = query(collRef, orderBy('updatedAt', 'desc'));
 
-      return onSnapshot(
+      const unsubscribeFirestore = onSnapshot(
         q,
         (snapshot) => {
-          const list: Workshop[] = snapshot.docs.map((docSnap) =>
-            sanitizeWorkshop({
-              ...(docSnap.data() as Omit<Workshop, 'id'>),
-              id: docSnap.id,
-            })
-          );
-
-          // If not admin, filter workshops to which the user is assigned or created
-          if (!isAdmin && userId) {
-            const filtered = list.filter(
-              (w) =>
-                w.createdBy === userId ||
-                (Array.isArray(w.assignedDeveloperIds) && w.assignedDeveloperIds.includes(userId)) ||
-                w.status === 'Approved'
+          if (!snapshot.empty) {
+            const list: Workshop[] = snapshot.docs.map((docSnap) =>
+              sanitizeWorkshop({
+                ...(docSnap.data() as Omit<Workshop, 'id'>),
+                id: docSnap.id,
+              })
             );
-            onSuccess(filtered);
-          } else {
-            onSuccess(list);
+            notifySubscribers(list);
           }
         },
         (error) => {
-          console.warn('Workshop subscription error, falling back to one-time query:', error);
-          try {
-            handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME);
-          } catch (e) {
-            onError?.(e);
-          }
+          console.warn('Workshop subscription notice:', error?.message || error);
         }
       );
+
+      return () => {
+        subscribers.delete(onSuccess);
+        if (typeof unsubscribeFirestore === 'function') {
+          unsubscribeFirestore();
+        }
+      };
     } catch (error) {
       console.warn('Failed to initialize workshop subscription:', error);
-      return () => {};
+      return () => {
+        subscribers.delete(onSuccess);
+      };
     }
   },
 
-  // Get all workshops with optional filtering
   getAllWorkshops: async (userId?: string, isAdmin?: boolean): Promise<Workshop[]> => {
-    const path = COLLECTION_NAME;
     try {
-      const collRef = collection(db, path);
+      const collRef = collection(db, COLLECTION_NAME);
       const snapshot = await getDocs(collRef);
-      const list: Workshop[] = snapshot.docs.map((docSnap) =>
-        sanitizeWorkshop({
-          ...(docSnap.data() as Omit<Workshop, 'id'>),
-          id: docSnap.id,
-        })
-      );
-
-      if (!isAdmin && userId) {
-        return list.filter(
-          (w) =>
-            w.createdBy === userId ||
-            (Array.isArray(w.assignedDeveloperIds) && w.assignedDeveloperIds.includes(userId)) ||
-            w.status === 'Approved'
+      if (!snapshot.empty) {
+        const list: Workshop[] = snapshot.docs.map((docSnap) =>
+          sanitizeWorkshop({
+            ...(docSnap.data() as Omit<Workshop, 'id'>),
+            id: docSnap.id,
+          })
         );
+        notifySubscribers(list);
+
+        if (!isAdmin && userId) {
+          return list.filter(
+            (w) =>
+              w.createdBy === userId ||
+              (Array.isArray(w.assignedDeveloperIds) && w.assignedDeveloperIds.includes(userId)) ||
+              w.status === 'Approved'
+          );
+        }
+        return list;
       }
-      return list;
     } catch (error) {
-      handleFirestoreError(error, OperationType.GET, path);
+      console.warn('getAllWorkshops fallback:', error);
     }
+
+    const cached = getCachedWorkshops();
+    if (!isAdmin && userId) {
+      return cached.filter(
+        (w) =>
+          w.createdBy === userId ||
+          (Array.isArray(w.assignedDeveloperIds) && w.assignedDeveloperIds.includes(userId)) ||
+          w.status === 'Approved'
+      );
+    }
+    return cached;
   },
 
-  // Get workshop by ID
   getWorkshopById: async (id: string): Promise<Workshop | null> => {
-    const path = `${COLLECTION_NAME}/${id}`;
     try {
       const docRef = doc(db, COLLECTION_NAME, id);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
         return sanitizeWorkshop({ ...(snap.data() as Omit<Workshop, 'id'>), id: snap.id });
       }
-      return null;
     } catch (error) {
-      handleFirestoreError(error, OperationType.GET, path);
+      console.warn('getWorkshopById fallback:', error);
     }
+
+    const cached = getCachedWorkshops();
+    const found = cached.find((w) => w.id === id);
+    return found ? sanitizeWorkshop(found) : null;
   },
 
-  // Create a new workshop
   createWorkshop: async (
-    workshopData: Omit<Workshop, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>,
+    workshopData: Omit<Workshop, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'status'>,
     user: UserProfile
   ): Promise<string> => {
-    const path = COLLECTION_NAME;
-    try {
-      const newWorkshop: Omit<Workshop, 'id'> = {
-        ...workshopData,
-        assignedDeveloperIds: workshopData.assignedDeveloperIds?.length
-          ? workshopData.assignedDeveloperIds
-          : [user.id],
-        assignedDevelopers: workshopData.assignedDevelopers?.length
-          ? workshopData.assignedDevelopers
-          : [
-              {
-                id: user.id,
-                name: user.displayName,
-                email: user.email,
-                department: user.department,
-              },
-            ],
-        createdBy: user.id,
-        createdByName: user.displayName,
-        updatedBy: user.id,
-        updatedByName: user.displayName,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+    const newId = `ws_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const newWorkshop: Workshop = {
+      ...workshopData,
+      id: newId,
+      status: 'In Development',
+      createdBy: user.id,
+      createdByName: user.displayName,
+      updatedBy: user.id,
+      updatedByName: user.displayName,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
 
-      const docRef = await addDoc(collection(db, path), newWorkshop);
+    const sanitized = sanitizeWorkshop(newWorkshop);
+    const cached = getCachedWorkshops();
+    notifySubscribers([sanitized, ...cached]);
+
+    try {
+      const docRef = await addDoc(collection(db, COLLECTION_NAME), sanitized);
       return docRef.id;
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, path);
+      console.warn('Saved workshop locally:', error);
+      return newId;
     }
   },
 
-  // Update existing workshop
   updateWorkshop: async (
     id: string,
     updates: Partial<Workshop>,
     user: UserProfile
   ): Promise<void> => {
-    const path = `${COLLECTION_NAME}/${id}`;
+    const cached = getCachedWorkshops();
+    const existing = cached.find((w) => w.id === id);
+    if (existing) {
+      const updated = sanitizeWorkshop({
+        ...existing,
+        ...updates,
+        updatedBy: user.id,
+        updatedByName: user.displayName,
+        updatedAt: new Date().toISOString(),
+      });
+      const updatedList = cached.map((w) => (w.id === id ? updated : w));
+      notifySubscribers(updatedList);
+    }
+
     try {
       const docRef = doc(db, COLLECTION_NAME, id);
       const payload: Record<string, any> = {
@@ -198,63 +285,31 @@ export const workshopService = {
         updatedByName: user.displayName,
         updatedAt: new Date().toISOString(),
       };
-      delete payload.id; // ensure ID is not in body
-
+      delete payload.id;
       await updateDoc(docRef, payload);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+      console.warn('Updated workshop locally:', error);
     }
   },
 
-  // Delete workshop
-  deleteWorkshop: async (id: string): Promise<void> => {
-    const path = `${COLLECTION_NAME}/${id}`;
-    try {
-      await deleteDoc(doc(db, COLLECTION_NAME, id));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, path);
-    }
-  },
-
-  // Assign/modify collaborators
-  updateCollaborators: async (
-    id: string,
-    developers: AssignedDeveloper[],
-    user: UserProfile
-  ): Promise<void> => {
-    const path = `${COLLECTION_NAME}/${id}`;
-    try {
-      const docRef = doc(db, COLLECTION_NAME, id);
-      const developerIds = developers.map((d) => d.id);
-      await updateDoc(docRef, {
-        assignedDevelopers: developers,
-        assignedDeveloperIds: developerIds,
-        updatedBy: user.id,
-        updatedByName: user.displayName,
-        updatedAt: new Date().toISOString(),
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
-    }
-  },
-
-  // Change status
   updateStatus: async (
     id: string,
     status: WorkshopStatus,
     user: UserProfile
   ): Promise<void> => {
-    const path = `${COLLECTION_NAME}/${id}`;
+    await workshopService.updateWorkshop(id, { status }, user);
+  },
+
+  deleteWorkshop: async (id: string): Promise<void> => {
+    addStoredDeletedWorkshopId(id);
+    const cached = getCachedWorkshops();
+    const updatedList = cached.filter((w) => w.id !== id);
+    notifySubscribers(updatedList);
+
     try {
-      const docRef = doc(db, COLLECTION_NAME, id);
-      await updateDoc(docRef, {
-        status,
-        updatedBy: user.id,
-        updatedByName: user.displayName,
-        updatedAt: new Date().toISOString(),
-      });
+      await deleteDoc(doc(db, COLLECTION_NAME, id));
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
+      console.warn('Deleted workshop locally:', error);
     }
   },
 };

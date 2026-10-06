@@ -11,7 +11,7 @@ import {
   orderBy,
   onSnapshot,
 } from 'firebase/firestore';
-import { db, handleFirestoreError } from '../config/firebase';
+import { db, auth, handleFirestoreError } from '../config/firebase';
 import { UserProfile, UserRole, OperationType } from '../types';
 
 const COLLECTION_NAME = 'users';

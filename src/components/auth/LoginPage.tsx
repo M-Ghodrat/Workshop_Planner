@@ -4,9 +4,7 @@ import {
   Lock,
   Mail,
   User,
-  Shield,
   ArrowRight,
-  CheckCircle2,
   Building,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -14,7 +12,12 @@ import { useToast } from '../../context/ToastContext';
 import { UserRole } from '../../types';
 
 export const LoginPage: React.FC = () => {
-  const { signInWithGoogle, signInWithEmail, signUpWithEmail, loading } = useAuth();
+  const {
+    signInWithGoogle,
+    signInWithEmail,
+    signUpWithEmail,
+    loading,
+  } = useAuth();
   const { success, error } = useToast();
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
@@ -91,13 +94,13 @@ export const LoginPage: React.FC = () => {
         </div>
 
         {/* Login Card */}
-        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 sm:p-8">
+        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 sm:p-8 space-y-5">
           {/* Google Sign-in */}
           <button
             type="button"
             onClick={handleGoogleLogin}
             disabled={isSubmitting || loading}
-            className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-sm font-semibold shadow-xs transition-colors cursor-pointer mb-5"
+            className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-sm font-semibold shadow-xs transition-colors cursor-pointer"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path
@@ -121,7 +124,7 @@ export const LoginPage: React.FC = () => {
           </button>
 
           {/* Divider */}
-          <div className="relative flex items-center justify-center my-4">
+          <div className="relative flex items-center justify-center">
             <div className="border-t border-slate-200 w-full" />
             <span className="bg-white px-3 text-xs text-slate-400 uppercase tracking-wider font-semibold">
               Or email sign in
@@ -129,7 +132,7 @@ export const LoginPage: React.FC = () => {
           </div>
 
           {/* Tabs: Sign In / Register */}
-          <div className="flex border-b border-slate-200 mb-5">
+          <div className="flex border-b border-slate-200">
             <button
               type="button"
               onClick={() => setMode('signin')}
@@ -139,7 +142,7 @@ export const LoginPage: React.FC = () => {
                   : 'border-transparent text-slate-400 hover:text-slate-700'
               }`}
             >
-              Sign In
+              Sign In with Email
             </button>
             <button
               type="button"
@@ -177,14 +180,14 @@ export const LoginPage: React.FC = () => {
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Institutional Email
+                Institutional / Faculty Email
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="email"
                   required
-                  placeholder="faculty@ucw.ca"
+                  placeholder="faculty@ucanwest.ca"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#002B49]/20 focus:border-[#002B49]"
@@ -217,6 +220,7 @@ export const LoginPage: React.FC = () => {
                   onChange={(e) => setRole(e.target.value as UserRole)}
                   className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg text-slate-900 bg-white focus:outline-hidden focus:ring-2 focus:ring-[#002B49]/20 focus:border-[#002B49]"
                 >
+                  <option value="workshop_lead">Workshop Lead (Manage Series & Workshops)</option>
                   <option value="developer">Developer (Create & Edit Workshops)</option>
                   <option value="administrator">Administrator (Full Platform Control)</option>
                 </select>
@@ -232,13 +236,12 @@ export const LoginPage: React.FC = () => {
                 {isSubmitting
                   ? 'Authenticating...'
                   : mode === 'signin'
-                  ? 'Sign In'
+                  ? 'Sign In to Workspace'
                   : 'Complete Registration'}
               </span>
               <ArrowRight className="w-4 h-4 text-amber-400" />
             </button>
           </form>
-
         </div>
 
         {/* Footer info */}

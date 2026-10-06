@@ -150,6 +150,13 @@ export interface Workshop {
   updatedAt?: string | any;
 }
 
+export interface SeriesLead {
+  id: string;
+  name: string;
+  email?: string;
+  department?: string;
+}
+
 export interface WorkshopSeries {
   id?: string;
   name: string;
@@ -159,6 +166,8 @@ export interface WorkshopSeries {
   leadId?: string;
   leadName?: string;
   leadEmail?: string;
+  leadIds?: string[];
+  leads?: SeriesLead[];
   workshopCount?: number;
   workshopIds: string[];
   status: 'Active' | 'Archived' | 'Draft';
@@ -182,6 +191,8 @@ export interface Course {
   updatedAt?: string | any;
 }
 
+export type MatchLevel = 'low' | 'partial' | 'strong';
+
 export interface OutcomeMapping {
   id?: string;
   courseId: string;
@@ -189,6 +200,7 @@ export interface OutcomeMapping {
   targetType: 'workshop' | 'series';
   targetId: string; // workshopId or seriesId
   targetLoId: string; // workshop LO ID or series LO ID
+  matchLevel?: MatchLevel; // 'low' | 'partial' | 'strong'
   mappedBy: string;
   createdAt?: string | any;
 }

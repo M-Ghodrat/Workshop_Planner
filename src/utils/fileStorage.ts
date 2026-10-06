@@ -145,4 +145,18 @@ export const fileStorage = {
       console.warn('Could not delete file from IndexedDB:', err);
     }
   },
+
+  deleteMetadata: async (id: string): Promise<void> => {
+    try {
+      const db = await openDB();
+      const tx = db.transaction(STORE_METADATA, 'readwrite');
+      tx.objectStore(STORE_METADATA).delete(id);
+      return new Promise((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch (err) {
+      console.warn('Could not delete metadata from IndexedDB:', err);
+    }
+  },
 };

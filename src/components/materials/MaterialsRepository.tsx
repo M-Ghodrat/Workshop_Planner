@@ -151,7 +151,7 @@ export const MaterialsRepository: React.FC<MaterialsRepositoryProps> = ({
       id: 'usr_faculty',
       displayName: 'Faculty Member',
       email: 'faculty@ucanwest.ca',
-      role: 'Faculty',
+      role: 'developer',
       department: 'Academic Faculty',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

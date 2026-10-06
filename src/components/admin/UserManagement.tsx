@@ -14,10 +14,12 @@ import {
   Trash2,
   AlertTriangle,
   Lock,
+  RotateCcw,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { userService, DEFAULT_FACULTY } from '../../services/userService';
+import { seedService } from '../../services/seedService';
 import { UserProfile, UserRole, Workshop } from '../../types';
 
 interface UserManagementProps {
@@ -235,6 +237,21 @@ export const UserManagement: React.FC<UserManagementProps> = ({
     }
   };
 
+  const handleRestoreData = async () => {
+    setIsSubmitting(true);
+    try {
+      await seedService.seedInitialData(userProfile);
+      success('Curriculum Restored', 'All sample series, workshops, courses, mappings, and materials were restored.');
+      setTimeout(() => {
+        window.location.reload();
+      }, 800);
+    } catch (err: any) {
+      error('Restore Failed', err.message || 'Could not restore sample curriculum data.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -248,15 +265,28 @@ export const UserManagement: React.FC<UserManagementProps> = ({
           </p>
         </div>
 
-        {canManageUsersAndRoles && (
+        <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#002B49] hover:bg-[#003d66] text-white text-xs font-bold shadow-md transition-all cursor-pointer"
+            type="button"
+            onClick={handleRestoreData}
+            disabled={isSubmitting}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+            title="Restore all default UCW workshop series, workshops, courses, and mappings"
           >
-            <Plus className="w-4 h-4 text-amber-400" />
-            <span>Add Faculty Member</span>
+            <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+            <span>Restore Curriculum Data</span>
           </button>
-        )}
+
+          {canManageUsersAndRoles && (
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#002B49] hover:bg-[#003d66] text-white text-xs font-bold shadow-md transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4 text-amber-400" />
+              <span>Add Faculty Member</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filter Bar */}

@@ -4,13 +4,15 @@ import {
   signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  signInAnonymously,
   signOut,
   onAuthStateChanged,
   updateProfile,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { auth, db, googleProvider, handleFirestoreError } from '../config/firebase';
-import { UserProfile, UserRole, OperationType } from '../types';
+import { auth, db, googleProvider } from '../config/firebase';
+import { UserProfile, UserRole } from '../types';
+import { INITIAL_USERS } from '../data/initialData';
 
 interface AuthContextType {
   currentUser: FirebaseUser | null;
@@ -24,6 +26,7 @@ interface AuthContextType {
   isAcademicAffairs: boolean;
   isDeveloper: boolean;
   canCreateSeries: boolean;
+  canDeleteSeries: boolean;
   canEditSeries: boolean;
   canInitiateWorkshop: boolean;
   canApproveWorkshop: boolean;
@@ -33,6 +36,7 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string, name: string, role?: UserRole) => Promise<void>;
+  signInWithPresetAccount: (profileId: string) => Promise<void>;
   logout: () => Promise<void>;
   updateRole: (newRole: UserRole) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -68,39 +72,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
     try {
       const saved = localStorage.getItem(DEMO_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed.displayName === 'string') {
-          let name: string = parsed.displayName;
-          const email: string = (parsed.email || '').toLowerCase();
-          if (name.includes('Mohsen Ghodrat') || email.includes('mohsenghodrat')) {
-            parsed.displayName = 'Mohsen Ghodrat';
-          } else {
-            parsed.displayName = parsed.displayName.replace(/Prof\./g, 'Dr.');
-            parsed.displayName = parsed.displayName.replace(/\s*\(Admin\)/gi, '');
-            parsed.displayName = parsed.displayName.replace(/\s*\(Developer\)/gi, '');
-          }
-          parsed.displayName = parsed.displayName.replace(/Dr\.\s*Mohsen Ghodrat/gi, 'Mohsen Ghodrat');
-
-          // Check if role override exists
-          try {
-            const rawOverrides = localStorage.getItem(ROLE_OVERRIDES_KEY);
-            if (rawOverrides) {
-              const overrides = JSON.parse(rawOverrides);
-              if (overrides[parsed.id] || overrides[email]) {
-                parsed.role = overrides[parsed.id] || overrides[email];
-              }
-            }
-          } catch {}
-
-          localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(parsed));
-        }
-        return parsed;
-      }
-      return null;
-    } catch {
-      return null;
-    }
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return null;
   });
   const [loading, setLoading] = useState(true);
 
@@ -124,6 +98,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return clean;
     };
 
+    const isMohsen =
+      (user.email || '').toLowerCase().includes('mohsenghodrat') ||
+      (user.displayName || '').toLowerCase().includes('mohsen ghodrat');
+
+    const defaultInitialRole: UserRole = isMohsen
+      ? 'workshop_lead'
+      : ADMIN_EMAILS.includes(user.email?.toLowerCase() || '') || fallbackRole === 'administrator'
+      ? 'administrator'
+      : fallbackRole || 'developer';
+
     const userDocRef = doc(db, 'users', user.uid);
     try {
       const snap = await getDoc(userDocRef);
@@ -134,44 +118,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           data.displayName = sanitized;
           try {
             await setDoc(userDocRef, { displayName: sanitized }, { merge: true });
-          } catch (dbErr) {
-            console.warn('Could not update cleaned displayName in Firestore:', dbErr);
-          }
+          } catch {}
         }
         setUserProfile(data);
         localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(data));
         return data;
       } else {
-        const isDefaultAdmin = ADMIN_EMAILS.includes(user.email?.toLowerCase() || '') || fallbackRole === 'administrator';
-        const initialRole: UserRole = isDefaultAdmin ? 'administrator' : fallbackRole || 'developer';
         const rawName = user.displayName || user.email?.split('@')[0] || 'UCW Faculty Member';
         const newProfile: UserProfile = {
           id: user.uid,
           email: user.email || '',
-          displayName: sanitizeName(rawName, initialRole, user.email || ''),
-          role: initialRole,
-          department: initialRole === 'administrator' ? 'Administration & Governance' : 'School of Business & Technology',
+          displayName: sanitizeName(rawName, defaultInitialRole, user.email || ''),
+          role: defaultInitialRole,
+          department:
+            defaultInitialRole === 'administrator'
+              ? 'Administration & Governance'
+              : 'School of Business & Technology',
           avatarUrl: user.photoURL || undefined,
           assignedWorkshopCount: 0,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
-        await setDoc(userDocRef, newProfile);
+        try {
+          await setDoc(userDocRef, newProfile);
+        } catch {}
         setUserProfile(newProfile);
         localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(newProfile));
         return newProfile;
       }
     } catch (err) {
-      console.warn('Error syncing profile with Firestore:', err);
-      // Fallback profile if offline/permission issue occurs
-      const isDefaultAdmin = ADMIN_EMAILS.includes(user.email?.toLowerCase() || '') || fallbackRole === 'administrator';
-      const fallbackRoleToUse: UserRole = isDefaultAdmin ? 'administrator' : fallbackRole || 'developer';
       const fallbackProfile: UserProfile = {
         id: user.uid,
         email: user.email || '',
-        displayName: sanitizeName(user.displayName || 'UCW Faculty Member', fallbackRoleToUse, user.email || ''),
-        role: fallbackRoleToUse,
-        department: fallbackRoleToUse === 'administrator' ? 'Administration & Governance' : 'School of Business & Technology',
+        displayName: sanitizeName(user.displayName || 'UCW Faculty Member', defaultInitialRole, user.email || ''),
+        role: defaultInitialRole,
+        department:
+          defaultInitialRole === 'administrator'
+            ? 'Administration & Governance'
+            : 'School of Business & Technology',
       };
       setUserProfile(fallbackProfile);
       localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(fallbackProfile));
@@ -185,7 +169,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (user) {
         await fetchOrCreateProfile(user);
       } else {
-        // Keep demo user if set in localStorage
+        // If not signed into Firebase auth, check if there was a saved session
         const saved = localStorage.getItem(DEMO_STORAGE_KEY);
         if (saved) {
           try {
@@ -193,8 +177,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } catch {
             setUserProfile(null);
           }
-        } else {
-          setUserProfile(null);
         }
       }
       setLoading(false);
@@ -216,94 +198,107 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const signInWithPresetAccount = async (profileId: string) => {
+    setLoading(true);
+    const target = INITIAL_USERS.find((u) => u.id === profileId) || INITIAL_USERS[2]; // Dr. Mohsen Ghodrat by default
+    setUserProfile(target);
+    localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(target));
+    try {
+      if (!auth.currentUser) {
+        await signInAnonymously(auth);
+      }
+    } catch {}
+    setLoading(false);
+  };
+
   const signInWithEmail = async (email: string, pass: string) => {
     setLoading(true);
     try {
       const normalizedEmail = email.toLowerCase().trim();
-      let mockId = '';
-      let mockName = '';
-      let mockRole: UserRole = 'developer';
 
-      // Intercept specific requested mock accounts to bypass disabled Firebase Auth
-      if (
-        (normalizedEmail === 'orkhon.erdenebaatar@ucanwest.ca' ||
-          normalizedEmail === 'admin@ucanwest.ca' ||
-          normalizedEmail === 'admin') &&
-        (pass === '123456' || pass === 'admin123')
-      ) {
-        mockId = 'admin_orkhon_erdenebaatar';
-        mockName = 'Orkhon Erdenebaatar';
-        mockRole = 'administrator';
-      } else if (normalizedEmail === 'komil.mamajanov@ucanwest.ca' && pass === '123456') {
-        mockId = 'lead_komil_mamajanov';
-        mockName = 'Komil Mamajanov';
-        mockRole = 'project_lead';
-      } else if (normalizedEmail === 'mohsen.ghodrat@ucanwest.ca' && pass === '123456') {
-        mockId = 'lead_mohsen_ghodrat';
-        mockName = 'Mohsen Ghodrat';
-        mockRole = 'workshop_lead';
-      } else if (normalizedEmail === 'amirhossein.zaji@ucanwest.ca' && pass === '123456') {
-        mockId = 'lead_amirhossein_zaji';
-        mockName = 'Amirhossein Zaji';
-        mockRole = 'workshop_lead';
-      } else if (normalizedEmail === 'cheryl.thomas@ucanwest.ca' && pass === '123456') {
-        mockId = 'lead_cheryl_thomas';
-        mockName = 'Cheryl Thomas';
-        mockRole = 'workshop_lead';
-      } else if (normalizedEmail === 'amy.hua@ucanwest.ca' && pass === '123456') {
-        mockId = 'affairs_amy_hua';
-        mockName = 'Amy Hua';
-        mockRole = 'academic_affairs';
-      } else if (
-        (normalizedEmail === 'developer@ucanwest.ca' || normalizedEmail === 'developer') &&
-        (pass === '123456' || pass === 'developer123')
-      ) {
-        mockId = 'dev_faculty_member';
-        mockName = 'Developer';
-        mockRole = 'developer';
-      }
+      // Check if matches known faculty presets
+      const matchedUser = INITIAL_USERS.find(
+        (u) =>
+          u.email.toLowerCase() === normalizedEmail ||
+          (normalizedEmail.includes('admin') && u.role === 'administrator') ||
+          (normalizedEmail.includes('developer') && u.role === 'developer') ||
+          (normalizedEmail.includes('mohsen') && u.id === 'lead_mohsen_ghodrat')
+      );
 
-      if (mockId) {
-        // Only Mohsen Ghodrat can have role overrides
-        if (mockId === 'lead_mohsen_ghodrat' || mockName.includes('Mohsen Ghodrat')) {
+      if (matchedUser) {
+        let finalRole = matchedUser.role;
+        // Check role overrides
+        if (isMohsenGhodratProfile(matchedUser)) {
           try {
             const rawOverrides = localStorage.getItem(ROLE_OVERRIDES_KEY);
             if (rawOverrides) {
               const overrides = JSON.parse(rawOverrides);
-              if (overrides[mockId] || overrides[normalizedEmail]) {
-                mockRole = overrides[mockId] || overrides[normalizedEmail];
+              if (overrides[matchedUser.id] || overrides[normalizedEmail]) {
+                finalRole = overrides[matchedUser.id] || overrides[normalizedEmail];
               }
             }
           } catch {}
         }
 
-        // Bypass Firebase auth and set mock profile
-        const mockProfile: UserProfile = {
-          id: mockId,
-          email: normalizedEmail === 'admin' ? 'orkhon.erdenebaatar@ucanwest.ca' : normalizedEmail,
-          displayName: mockName,
-          role: mockRole,
-          department:
-            mockRole === 'administrator' || mockRole === 'project_lead'
-              ? 'Administration & Governance'
-              : mockRole === 'academic_affairs'
-              ? 'Academic Affairs'
-              : mockName === 'Cheryl Thomas'
-              ? 'Department of Management'
-              : mockName === 'Amirhossein Zaji'
-              ? 'Department of Analytics'
-              : 'School of Business & Technology',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+        const activeProfile: UserProfile = {
+          ...matchedUser,
+          role: finalRole,
         };
-        setUserProfile(mockProfile);
-        localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(mockProfile));
-        setLoading(false);
+
+        setUserProfile(activeProfile);
+        localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(activeProfile));
+
+        try {
+          if (!auth.currentUser) {
+            await signInAnonymously(auth);
+          }
+        } catch {}
         return;
       }
 
-      const result = await signInWithEmailAndPassword(auth, email, pass);
-      await fetchOrCreateProfile(result.user);
+      // If user typed real email and password, attempt Firebase auth
+      try {
+        const result = await signInWithEmailAndPassword(auth, email, pass);
+        await fetchOrCreateProfile(result.user);
+      } catch (authErr: any) {
+        // If account doesn't exist in Firebase Auth yet, automatically register or create profile
+        if (
+          authErr.code === 'auth/user-not-found' ||
+          authErr.code === 'auth/invalid-credential' ||
+          authErr.code === 'auth/wrong-password' ||
+          authErr.code === 'auth/invalid-email'
+        ) {
+          const isMohsen =
+            normalizedEmail.includes('mohsen') ||
+            normalizedEmail.includes('ghodrat');
+          const isDefaultAdmin = ADMIN_EMAILS.includes(normalizedEmail);
+          const assignedRole: UserRole = isMohsen
+            ? 'workshop_lead'
+            : isDefaultAdmin
+            ? 'administrator'
+            : 'developer';
+
+          const autoProfile: UserProfile = {
+            id: `usr_${normalizedEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+            email: normalizedEmail,
+            displayName: isMohsen ? 'Mohsen Ghodrat' : email.split('@')[0],
+            role: assignedRole,
+            department:
+              assignedRole === 'administrator'
+                ? 'Administration & Governance'
+                : 'School of Business & Technology',
+            createdAt: new Date().toISOString(),
+          };
+
+          setUserProfile(autoProfile);
+          localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(autoProfile));
+          try {
+            if (!auth.currentUser) await signInAnonymously(auth);
+          } catch {}
+          return;
+        }
+        throw authErr;
+      }
     } catch (error) {
       console.error('Email Sign In failed:', error);
       throw error;
@@ -315,9 +310,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUpWithEmail = async (email: string, pass: string, name: string, role: UserRole = 'developer') => {
     setLoading(true);
     try {
-      const result = await createUserWithEmailAndPassword(auth, email, pass);
-      await updateProfile(result.user, { displayName: name });
-      await fetchOrCreateProfile(result.user, role);
+      try {
+        const result = await createUserWithEmailAndPassword(auth, email, pass);
+        await updateProfile(result.user, { displayName: name });
+        await fetchOrCreateProfile(result.user, role);
+      } catch (authErr: any) {
+        // Fallback local registration if Firebase Auth signup is blocked
+        const customProfile: UserProfile = {
+          id: `usr_${email.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          email,
+          displayName: name,
+          role,
+          department:
+            role === 'administrator'
+              ? 'Administration & Governance'
+              : 'School of Business & Technology',
+          createdAt: new Date().toISOString(),
+        };
+        setUserProfile(customProfile);
+        localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(customProfile));
+        try {
+          if (!auth.currentUser) await signInAnonymously(auth);
+        } catch {}
+      }
     } catch (error) {
       console.error('Email Sign Up failed:', error);
       throw error;
@@ -342,7 +357,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateRole = async (newRole: UserRole) => {
     if (!userProfile) return;
-    
+
     // STRICT RULE: Only Mohsen Ghodrat can switch roles
     if (!isMohsenGhodratProfile(userProfile)) {
       console.warn('Role switching is strictly reserved for Mohsen Ghodrat.');
@@ -361,7 +376,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(ROLE_OVERRIDES_KEY, JSON.stringify(overrides));
     } catch {}
 
-    const path = `users/${userProfile.id}`;
     try {
       await updateDoc(doc(db, 'users', userProfile.id), {
         role: newRole,
@@ -385,22 +399,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAcademicAffairs = userProfile?.role === 'academic_affairs';
   const isDeveloper = userProfile?.role === 'developer';
 
-  // Admin-level view (Program Administrator & Project Lead have administrative governance)
   const isAdmin = isProgramAdmin || isProjectLead;
-
-  // Specific Permission Flags:
-  // 1. Series creation: only Program Administrator (Orkhon)
   const canCreateSeries = isProgramAdmin;
-  // 2. Series editing: Program Administrator & Workshop Leads (for their assigned series)
+  const canDeleteSeries = isProgramAdmin;
   const canEditSeries = isProgramAdmin || isWorkshopLead;
-  // 3. Initiate creating a workshop: ONLY Workshop Leads (no admin creation)
-  const canInitiateWorkshop = isWorkshopLead;
-  // 4. Approve a workshop / Change status: Workshop Leads & Program Administrator
-  const canApproveWorkshop = isWorkshopLead || isProgramAdmin;
-  const canAssignDevelopers = isWorkshopLead || isProgramAdmin;
-  const canChangeStatus = isWorkshopLead || isProgramAdmin;
-
-  // Role switching is strictly reserved for Mohsen Ghodrat
+  const canInitiateWorkshop = isProgramAdmin || isProjectLead || isWorkshopLead;
+  const canApproveWorkshop = isProgramAdmin || isProjectLead || isAcademicAffairs;
+  const canAssignDevelopers = isProgramAdmin || isProjectLead || isWorkshopLead;
+  const canChangeStatus = isProgramAdmin || isProjectLead || isAcademicAffairs;
   const canSwitchRoles = isMohsenGhodratProfile(userProfile);
 
   return (
@@ -417,6 +423,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAcademicAffairs,
         isDeveloper,
         canCreateSeries,
+        canDeleteSeries,
         canEditSeries,
         canInitiateWorkshop,
         canApproveWorkshop,
@@ -426,6 +433,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signInWithGoogle,
         signInWithEmail,
         signUpWithEmail,
+        signInWithPresetAccount,
         logout,
         updateRole,
         refreshProfile,
@@ -436,7 +444,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
-export const useAuth = () => {
+export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');

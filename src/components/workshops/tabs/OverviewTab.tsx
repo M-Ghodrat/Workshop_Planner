@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, AlertCircle, CheckCircle2, BookOpen } from 'lucide-react';
+import { Layers, AlertCircle, CheckCircle2, BookOpen, AlertTriangle } from 'lucide-react';
 import { Workshop, WorkshopSeries } from '../../../types';
 
 interface OverviewTabProps {
@@ -87,18 +87,36 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             <select
               value={workshop.seriesId || ''}
               onChange={(e) => handleSeriesChange(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-xl bg-white text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-[#002B49]/20 focus:border-[#002B49]"
+              className={`w-full px-3 py-2 text-sm border rounded-xl bg-white focus:outline-hidden focus:ring-2 focus:ring-[#002B49]/20 ${
+                workshop.seriesId && !allSeries.some((s) => s.id === workshop.seriesId)
+                  ? 'border-amber-400 text-amber-900 bg-amber-50 font-bold'
+                  : 'border-slate-300 text-slate-800'
+              }`}
             >
               <option value="">Standalone Workshop (No Series)</option>
+              {workshop.seriesId && !allSeries.some((s) => s.id === workshop.seriesId) && (
+                <option value={workshop.seriesId}>
+                  ⚠️ {workshop.seriesName || 'Unknown Series'} (Deleted Series Track)
+                </option>
+              )}
               {allSeries.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
               ))}
             </select>
-            <span className="text-[10px] text-slate-400 mt-1 block">
-              Curriculum track association
-            </span>
+            {workshop.seriesId && !allSeries.some((s) => s.id === workshop.seriesId) ? (
+              <div className="mt-2 p-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs flex items-center gap-1.5 font-medium">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  <strong>Orphan Warning:</strong> This workshop&apos;s previous series was deleted. Please select an active series track to reassign it.
+                </span>
+              </div>
+            ) : (
+              <span className="text-[10px] text-slate-400 mt-1 block">
+                Curriculum track association
+              </span>
+            )}
           </div>
         </div>
 
