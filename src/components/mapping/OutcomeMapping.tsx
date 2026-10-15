@@ -42,8 +42,6 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
 
   const canEdit = isWorkshopLead; // Workshop leads can map, others can only see
 
-  // Active cell popover state for direct level selection
-  const [activeCellKey, setActiveCellKey] = useState<string | null>(null);
   const [levelFilter, setLevelFilter] = useState<'all' | 'strong' | 'partial' | 'low' | 'mapped'>('all');
 
   // Helper to resolve all potential user UIDs
@@ -1175,8 +1173,6 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
                             {/* Cells for each Course Outcome */}
                             {filteredCourseLos.map((co) => {
                               const matchLevel = getMatchLevel(co.id, lo.id, selectedSeries.id || '');
-                              const cellKey = `${co.id}_${lo.id}_${selectedSeries.id || ''}`;
-                              const isCellActive = activeCellKey === cellKey;
 
                               // Apply level filter
                               if (levelFilter === 'mapped' && matchLevel === 'none') {
@@ -1198,125 +1194,53 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
                                   className="p-3 border-r border-slate-200 text-center relative transition-all align-middle"
                                 >
                                   <div className="flex flex-col items-center justify-center gap-1 min-h-[44px]">
-                                    <button
-                                      onClick={() => {
-                                        if (!canEdit) return;
-                                        if (isCellActive) {
-                                          setActiveCellKey(null);
-                                        } else {
-                                          setActiveCellKey(cellKey);
-                                        }
-                                      }}
-                                      className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl font-extrabold text-xs transition-all cursor-pointer shadow-xs ${
-                                        matchLevel === 'strong'
-                                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-500 ring-2 ring-emerald-200'
-                                          : matchLevel === 'partial'
-                                          ? 'bg-sky-600 hover:bg-sky-700 text-white border border-sky-500 ring-2 ring-sky-200'
-                                          : matchLevel === 'low'
-                                          ? 'bg-amber-500 hover:bg-amber-600 text-white border border-amber-400 ring-2 ring-amber-200'
-                                          : canEdit
-                                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-400 border border-dashed border-slate-300 hover:border-slate-400 hover:text-slate-700'
-                                          : 'bg-transparent text-slate-300'
-                                      }`}
-                                      title={canEdit ? 'Click to select or edit match level tag' : 'Match level tag'}
-                                    >
-                                      {matchLevel === 'strong' && (
-                                        <>
-                                          <span className="w-2 h-2 rounded-full bg-emerald-200 shrink-0 animate-pulse" />
-                                          <span>Strong</span>
-                                        </>
-                                      )}
-                                      {matchLevel === 'partial' && (
-                                        <>
-                                          <span className="w-2 h-2 rounded-full bg-sky-200 shrink-0" />
-                                          <span>Partial</span>
-                                        </>
-                                      )}
-                                      {matchLevel === 'low' && (
-                                        <>
-                                          <span className="w-2 h-2 rounded-full bg-amber-200 shrink-0" />
-                                          <span>Low</span>
-                                        </>
-                                      )}
-                                      {matchLevel === 'none' && (
-                                        <>
-                                          <Plus className="w-3.5 h-3.5 text-slate-400" />
-                                          <span className="text-[10px] uppercase font-bold tracking-wider">Unmapped</span>
-                                        </>
-                                      )}
-                                    </button>
-
-                                    {/* Level Selector Popover */}
-                                    {isCellActive && canEdit && (
-                                      <div className="absolute z-30 top-full left-1/2 -translate-x-1/2 mt-1 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 w-48 space-y-1 text-left animate-in fade-in zoom-in-95">
-                                        <div className="text-[9px] font-black uppercase text-slate-400 px-2 pt-1 pb-0.5">
-                                          Set Match Level Tag
-                                        </div>
-
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleSetLevel(co.id, lo.id, 'series', selectedSeries.id || '', 'strong');
-                                            setActiveCellKey(null);
+                                    {canEdit ? (
+                                      <div className="relative inline-flex items-center">
+                                        <select
+                                          value={matchLevel}
+                                          aria-label={`Match level for ${lo.code} and ${co.code}`}
+                                          onChange={(e) => {
+                                            const val = e.target.value as MatchLevel | 'none';
+                                            handleSetLevel(co.id, lo.id, 'series', selectedSeries.id || '', val);
                                           }}
-                                          className={`w-full flex items-center justify-between p-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                            matchLevel === 'strong' ? 'bg-emerald-50 text-emerald-950 border border-emerald-300' : 'hover:bg-emerald-50 text-slate-700'
+                                          className={`appearance-none cursor-pointer pl-3 pr-7 py-1.5 rounded-xl font-bold text-xs transition-all shadow-xs border ${
+                                            matchLevel === 'strong'
+                                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500 ring-2 ring-emerald-200'
+                                              : matchLevel === 'partial'
+                                              ? 'bg-sky-600 hover:bg-sky-700 text-white border-sky-500 ring-2 ring-sky-200'
+                                              : matchLevel === 'low'
+                                              ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-400 ring-2 ring-amber-200'
+                                              : 'bg-slate-50 hover:bg-slate-100 text-slate-500 border-dashed border-slate-300 hover:border-slate-400'
                                           }`}
+                                          title="Select mapping level"
                                         >
-                                          <div className="flex items-center gap-2">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0" />
-                                            <span>Strong Match</span>
-                                          </div>
-                                          {matchLevel === 'strong' && <Check className="w-3.5 h-3.5 text-emerald-600" />}
-                                        </button>
-
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleSetLevel(co.id, lo.id, 'series', selectedSeries.id || '', 'partial');
-                                            setActiveCellKey(null);
-                                          }}
-                                          className={`w-full flex items-center justify-between p-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                            matchLevel === 'partial' ? 'bg-sky-50 text-sky-950 border border-sky-300' : 'hover:bg-sky-50 text-slate-700'
+                                          <option value="none" className="bg-white text-slate-700 font-medium">Unmapped</option>
+                                          <option value="strong" className="bg-white text-emerald-800 font-bold">Strong Match</option>
+                                          <option value="partial" className="bg-white text-sky-800 font-bold">Partial Match</option>
+                                          <option value="low" className="bg-white text-amber-800 font-bold">Low Match</option>
+                                        </select>
+                                        <ChevronDown
+                                          className={`w-3.5 h-3.5 absolute right-2 pointer-events-none transition-colors ${
+                                            matchLevel === 'none' ? 'text-slate-400' : 'text-white/80'
                                           }`}
-                                        >
-                                          <div className="flex items-center gap-2">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-sky-600 shrink-0" />
-                                            <span>Partial Match</span>
-                                          </div>
-                                          {matchLevel === 'partial' && <Check className="w-3.5 h-3.5 text-sky-600" />}
-                                        </button>
-
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleSetLevel(co.id, lo.id, 'series', selectedSeries.id || '', 'low');
-                                            setActiveCellKey(null);
-                                          }}
-                                          className={`w-full flex items-center justify-between p-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                            matchLevel === 'low' ? 'bg-amber-50 text-amber-950 border border-amber-300' : 'hover:bg-amber-50 text-slate-700'
-                                          }`}
-                                        >
-                                          <div className="flex items-center gap-2">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
-                                            <span>Low Match</span>
-                                          </div>
-                                          {matchLevel === 'low' && <Check className="w-3.5 h-3.5 text-amber-600" />}
-                                        </button>
-
-                                        {matchLevel !== 'none' && (
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleSetLevel(co.id, lo.id, 'series', selectedSeries.id || '', 'none');
-                                              setActiveCellKey(null);
-                                            }}
-                                            className="w-full flex items-center gap-1.5 p-1.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition-all cursor-pointer border-t border-slate-100 mt-1"
-                                          >
-                                            <X className="w-3.5 h-3.5 text-rose-500" />
-                                            <span>Remove Tag (Unmap)</span>
-                                          </button>
-                                        )}
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div
+                                        className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl font-extrabold text-xs shadow-xs ${
+                                          matchLevel === 'strong'
+                                            ? 'bg-emerald-600 text-white border border-emerald-500'
+                                            : matchLevel === 'partial'
+                                            ? 'bg-sky-600 text-white border border-sky-500'
+                                            : matchLevel === 'low'
+                                            ? 'bg-amber-500 text-white border border-amber-400'
+                                            : 'text-slate-300'
+                                        }`}
+                                      >
+                                        {matchLevel === 'strong' && <span>Strong</span>}
+                                        {matchLevel === 'partial' && <span>Partial</span>}
+                                        {matchLevel === 'low' && <span>Low</span>}
+                                        {matchLevel === 'none' && <span className="text-[10px] uppercase font-bold tracking-wider text-slate-300">Unmapped</span>}
                                       </div>
                                     )}
                                   </div>
@@ -1387,8 +1311,6 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
                             {/* Cells for each Course Outcome */}
                             {filteredCourseLos.map((co) => {
                               const matchLevel = getMatchLevel(co.id, lo.id, workshop.id || '');
-                              const cellKey = `${co.id}_${lo.id}_${workshop.id || ''}`;
-                              const isCellActive = activeCellKey === cellKey;
 
                               // Apply level filter
                               if (levelFilter === 'mapped' && matchLevel === 'none') {
@@ -1410,125 +1332,53 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
                                   className="p-3 border-r border-slate-200 text-center relative transition-all align-middle"
                                 >
                                   <div className="flex flex-col items-center justify-center gap-1 min-h-[44px]">
-                                    <button
-                                      onClick={() => {
-                                        if (!canEdit) return;
-                                        if (isCellActive) {
-                                          setActiveCellKey(null);
-                                        } else {
-                                          setActiveCellKey(cellKey);
-                                        }
-                                      }}
-                                      className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl font-extrabold text-xs transition-all cursor-pointer shadow-xs ${
-                                        matchLevel === 'strong'
-                                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-500 ring-2 ring-emerald-200'
-                                          : matchLevel === 'partial'
-                                          ? 'bg-sky-600 hover:bg-sky-700 text-white border border-sky-500 ring-2 ring-sky-200'
-                                          : matchLevel === 'low'
-                                          ? 'bg-amber-500 hover:bg-amber-600 text-white border border-amber-400 ring-2 ring-amber-200'
-                                          : canEdit
-                                          ? 'bg-slate-50 hover:bg-slate-100 text-slate-400 border border-dashed border-slate-300 hover:border-slate-400 hover:text-slate-700'
-                                          : 'bg-transparent text-slate-300'
-                                      }`}
-                                      title={canEdit ? 'Click to select or edit match level tag' : 'Match level tag'}
-                                    >
-                                      {matchLevel === 'strong' && (
-                                        <>
-                                          <span className="w-2 h-2 rounded-full bg-emerald-200 shrink-0 animate-pulse" />
-                                          <span>Strong</span>
-                                        </>
-                                      )}
-                                      {matchLevel === 'partial' && (
-                                        <>
-                                          <span className="w-2 h-2 rounded-full bg-sky-200 shrink-0" />
-                                          <span>Partial</span>
-                                        </>
-                                      )}
-                                      {matchLevel === 'low' && (
-                                        <>
-                                          <span className="w-2 h-2 rounded-full bg-amber-200 shrink-0" />
-                                          <span>Low</span>
-                                        </>
-                                      )}
-                                      {matchLevel === 'none' && (
-                                        <>
-                                          <Plus className="w-3.5 h-3.5 text-slate-400" />
-                                          <span className="text-[10px] uppercase font-bold tracking-wider">Unmapped</span>
-                                        </>
-                                      )}
-                                    </button>
-
-                                    {/* Level Selector Popover */}
-                                    {isCellActive && canEdit && (
-                                      <div className="absolute z-30 top-full left-1/2 -translate-x-1/2 mt-1 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 w-48 space-y-1 text-left animate-in fade-in zoom-in-95">
-                                        <div className="text-[9px] font-black uppercase text-slate-400 px-2 pt-1 pb-0.5">
-                                          Set Match Level Tag
-                                        </div>
-
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleSetLevel(co.id, lo.id, 'workshop', workshop.id || '', 'strong');
-                                            setActiveCellKey(null);
+                                    {canEdit ? (
+                                      <div className="relative inline-flex items-center">
+                                        <select
+                                          value={matchLevel}
+                                          aria-label={`Match level for ${lo.code} and ${co.code}`}
+                                          onChange={(e) => {
+                                            const val = e.target.value as MatchLevel | 'none';
+                                            handleSetLevel(co.id, lo.id, 'workshop', workshop.id || '', val);
                                           }}
-                                          className={`w-full flex items-center justify-between p-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                            matchLevel === 'strong' ? 'bg-emerald-50 text-emerald-950 border border-emerald-300' : 'hover:bg-emerald-50 text-slate-700'
+                                          className={`appearance-none cursor-pointer pl-3 pr-7 py-1.5 rounded-xl font-bold text-xs transition-all shadow-xs border ${
+                                            matchLevel === 'strong'
+                                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500 ring-2 ring-emerald-200'
+                                              : matchLevel === 'partial'
+                                              ? 'bg-sky-600 hover:bg-sky-700 text-white border-sky-500 ring-2 ring-sky-200'
+                                              : matchLevel === 'low'
+                                              ? 'bg-amber-500 hover:bg-amber-600 text-white border-amber-400 ring-2 ring-amber-200'
+                                              : 'bg-slate-50 hover:bg-slate-100 text-slate-500 border-dashed border-slate-300 hover:border-slate-400'
                                           }`}
+                                          title="Select mapping level"
                                         >
-                                          <div className="flex items-center gap-2">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0" />
-                                            <span>Strong Match</span>
-                                          </div>
-                                          {matchLevel === 'strong' && <Check className="w-3.5 h-3.5 text-emerald-600" />}
-                                        </button>
-
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleSetLevel(co.id, lo.id, 'workshop', workshop.id || '', 'partial');
-                                            setActiveCellKey(null);
-                                          }}
-                                          className={`w-full flex items-center justify-between p-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                            matchLevel === 'partial' ? 'bg-sky-50 text-sky-950 border border-sky-300' : 'hover:bg-sky-50 text-slate-700'
+                                          <option value="none" className="bg-white text-slate-700 font-medium">Unmapped</option>
+                                          <option value="strong" className="bg-white text-emerald-800 font-bold">Strong Match</option>
+                                          <option value="partial" className="bg-white text-sky-800 font-bold">Partial Match</option>
+                                          <option value="low" className="bg-white text-amber-800 font-bold">Low Match</option>
+                                        </select>
+                                        <ChevronDown
+                                          className={`w-3.5 h-3.5 absolute right-2 pointer-events-none transition-colors ${
+                                            matchLevel === 'none' ? 'text-slate-400' : 'text-white/80'
                                           }`}
-                                        >
-                                          <div className="flex items-center gap-2">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-sky-600 shrink-0" />
-                                            <span>Partial Match</span>
-                                          </div>
-                                          {matchLevel === 'partial' && <Check className="w-3.5 h-3.5 text-sky-600" />}
-                                        </button>
-
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleSetLevel(co.id, lo.id, 'workshop', workshop.id || '', 'low');
-                                            setActiveCellKey(null);
-                                          }}
-                                          className={`w-full flex items-center justify-between p-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                                            matchLevel === 'low' ? 'bg-amber-50 text-amber-950 border border-amber-300' : 'hover:bg-amber-50 text-slate-700'
-                                          }`}
-                                        >
-                                          <div className="flex items-center gap-2">
-                                            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
-                                            <span>Low Match</span>
-                                          </div>
-                                          {matchLevel === 'low' && <Check className="w-3.5 h-3.5 text-amber-600" />}
-                                        </button>
-
-                                        {matchLevel !== 'none' && (
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleSetLevel(co.id, lo.id, 'workshop', workshop.id || '', 'none');
-                                              setActiveCellKey(null);
-                                            }}
-                                            className="w-full flex items-center gap-1.5 p-1.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 transition-all cursor-pointer border-t border-slate-100 mt-1"
-                                          >
-                                            <X className="w-3.5 h-3.5 text-rose-500" />
-                                            <span>Remove Tag (Unmap)</span>
-                                          </button>
-                                        )}
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div
+                                        className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl font-extrabold text-xs shadow-xs ${
+                                          matchLevel === 'strong'
+                                            ? 'bg-emerald-600 text-white border border-emerald-500'
+                                            : matchLevel === 'partial'
+                                            ? 'bg-sky-600 text-white border border-sky-500'
+                                            : matchLevel === 'low'
+                                            ? 'bg-amber-500 text-white border border-amber-400'
+                                            : 'text-slate-300'
+                                        }`}
+                                      >
+                                        {matchLevel === 'strong' && <span>Strong</span>}
+                                        {matchLevel === 'partial' && <span>Partial</span>}
+                                        {matchLevel === 'low' && <span>Low</span>}
+                                        {matchLevel === 'none' && <span className="text-[10px] uppercase font-bold tracking-wider text-slate-300">Unmapped</span>}
                                       </div>
                                     )}
                                   </div>
