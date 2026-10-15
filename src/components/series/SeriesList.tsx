@@ -237,6 +237,19 @@ export const SeriesList: React.FC<SeriesListProps> = ({
   const [seriesLos, setSeriesLos] = useState<LearningOutcome[]>([]);
   const [newLoText, setNewLoText] = useState('');
   const [newLoBloom, setNewLoBloom] = useState<BloomsTaxonomy>('Understand');
+  const [editingLoId, setEditingLoId] = useState<string | null>(null);
+  const [editingLoText, setEditingLoText] = useState('');
+  const [editingLoBloom, setEditingLoBloom] = useState<BloomsTaxonomy>('Understand');
+
+  // Quick LO Edit Modal for Series View
+  const [quickEditSeriesLo, setQuickEditSeriesLo] = useState<{
+    seriesId: string;
+    seriesName: string;
+    loId: string;
+    code: string;
+    text: string;
+    bloomLevel: BloomsTaxonomy;
+  } | null>(null);
 
   // Open Create Form (Program Administrator only)
   const handleOpenCreate = () => {
@@ -253,6 +266,8 @@ export const SeriesList: React.FC<SeriesListProps> = ({
     setSeriesLos([]);
     setNewLoText('');
     setNewLoBloom('Understand');
+    setEditingLoId(null);
+    setEditingLoText('');
     setEditingSeries(null);
     setIsCreating(true);
   };
@@ -277,6 +292,8 @@ export const SeriesList: React.FC<SeriesListProps> = ({
     setSeriesLos(s.learningOutcomes || []);
     setNewLoText('');
     setNewLoBloom('Understand');
+    setEditingLoId(null);
+    setEditingLoText('');
     setEditingSeries(s);
     setIsCreating(true);
   };
@@ -305,12 +322,61 @@ export const SeriesList: React.FC<SeriesListProps> = ({
   };
 
   const handleRemoveSeriesLo = (id: string) => {
+    if (editingLoId === id) {
+      setEditingLoId(null);
+      setEditingLoText('');
+    }
     const filtered = seriesLos.filter((lo) => lo.id !== id);
     const reCoded = filtered.map((lo, idx) => ({
       ...lo,
       code: `LO${idx + 1}`,
     }));
     setSeriesLos(reCoded);
+  };
+
+  const handleStartEditSeriesLo = (lo: LearningOutcome) => {
+    setEditingLoId(lo.id);
+    setEditingLoText(lo.text);
+    setEditingLoBloom(lo.bloomLevel);
+  };
+
+  const handleSaveEditSeriesLo = () => {
+    if (!editingLoId || !editingLoText.trim()) return;
+    setSeriesLos((prev) =>
+      prev.map((lo) =>
+        lo.id === editingLoId
+          ? { ...lo, text: editingLoText.trim(), bloomLevel: editingLoBloom }
+          : lo
+      )
+    );
+    setEditingLoId(null);
+    setEditingLoText('');
+  };
+
+  const handleCancelEditSeriesLo = () => {
+    setEditingLoId(null);
+    setEditingLoText('');
+  };
+
+  const handleSaveQuickEditSeriesLo = async () => {
+    if (!quickEditSeriesLo || !quickEditSeriesLo.text.trim()) return;
+    const target = series.find((s) => s.id === quickEditSeriesLo.seriesId);
+    if (!target) return;
+    const updatedLos = (target.learningOutcomes || []).map((lo) =>
+      lo.id === quickEditSeriesLo.loId
+        ? { ...lo, text: quickEditSeriesLo.text.trim(), bloomLevel: quickEditSeriesLo.bloomLevel }
+        : lo
+    );
+    try {
+      await seriesService.updateSeries(target.id, { learningOutcomes: updatedLos }, userProfile || undefined);
+      success('Series Outcome Updated', `Outcome ${quickEditSeriesLo.code} updated.`);
+      if (selectedSeriesForView?.id === target.id) {
+        setSelectedSeriesForView({ ...selectedSeriesForView, learningOutcomes: updatedLos });
+      }
+      setQuickEditSeriesLo(null);
+    } catch (err: any) {
+      error('Update Failed', err.message || 'Could not update outcome.');
+    }
   };
 
   // Build SeriesLead objects from selected IDs
@@ -343,6 +409,23 @@ export const SeriesList: React.FC<SeriesListProps> = ({
     const leadsObjects = buildLeadsFromIds(formSelectedLeadIds);
     const primaryLead = leadsObjects[0] || null;
 
+    let finalSeriesLos = [...seriesLos];
+    if (editingLoId && editingLoText.trim()) {
+      finalSeriesLos = finalSeriesLos.map((lo) =>
+        lo.id === editingLoId
+          ? { ...lo, text: editingLoText.trim(), bloomLevel: editingLoBloom }
+          : lo
+      );
+    }
+    if (newLoText.trim()) {
+      finalSeriesLos.push({
+        id: `slo_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+        code: `LO${finalSeriesLos.length + 1}`,
+        text: newLoText.trim(),
+        bloomLevel: newLoBloom,
+      });
+    }
+
     try {
       if (editingSeries && editingSeries.id) {
         // Permission check: Only Program Administrator can reassign series leads
@@ -368,7 +451,7 @@ export const SeriesList: React.FC<SeriesListProps> = ({
           coreFocus: coreFocus.trim(),
           prefix: prefix.trim().toUpperCase(),
           status,
-          learningOutcomes: seriesLos,
+          learningOutcomes: finalSeriesLos,
           ...leadUpdates,
           updatedAt: new Date().toISOString(),
         };
@@ -397,7 +480,7 @@ export const SeriesList: React.FC<SeriesListProps> = ({
           status,
           workshopIds: [],
           workshopCount: 0,
-          learningOutcomes: seriesLos,
+          learningOutcomes: finalSeriesLos,
           leadIds: formSelectedLeadIds,
           leads: leadsObjects,
           leadId: primaryLead?.id || '',
@@ -969,15 +1052,34 @@ export const SeriesList: React.FC<SeriesListProps> = ({
                     {selectedSeriesForView.learningOutcomes.map((lo) => (
                       <div
                         key={lo.id}
-                        className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1"
+                        className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1 group hover:border-slate-300 transition-colors"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-extrabold text-[#002B49] text-xs">
-                            {lo.code}
-                          </span>
-                          <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-sky-50 text-sky-800 border border-sky-100">
-                            {lo.bloomLevel}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-[#002B49] text-xs">
+                              {lo.code}
+                            </span>
+                            <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-sky-50 text-sky-800 border border-sky-100">
+                              {lo.bloomLevel}
+                            </span>
+                          </div>
+                          {(isProgramAdmin || (canEditSeries && canModifyThisSeries(selectedSeriesForView))) && (
+                            <button
+                              type="button"
+                              onClick={() => setQuickEditSeriesLo({
+                                seriesId: selectedSeriesForView.id || '',
+                                seriesName: selectedSeriesForView.name,
+                                loId: lo.id,
+                                code: lo.code,
+                                text: lo.text,
+                                bloomLevel: lo.bloomLevel,
+                              })}
+                              className="p-1 text-slate-400 hover:text-[#002B49] hover:bg-slate-200 rounded-md cursor-pointer transition-colors"
+                              title={`Modify ${lo.code}`}
+                            >
+                              <Edit className="w-3 h-3" />
+                            </button>
+                          )}
                         </div>
                         <p className="text-slate-600 leading-relaxed font-semibold">{lo.text}</p>
                       </div>
@@ -1358,30 +1460,101 @@ export const SeriesList: React.FC<SeriesListProps> = ({
                 </div>
 
                 {seriesLos.length > 0 && (
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                    {seriesLos.map((lo) => (
-                      <div
-                        key={lo.id}
-                        className="flex items-start gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                      >
-                        <div className="flex-1 space-y-0.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-extrabold text-[#002B49]">{lo.code}</span>
-                            <span className="text-[9px] font-bold px-1 py-0.2 rounded bg-sky-100 text-sky-800">
-                              {lo.bloomLevel}
-                            </span>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {seriesLos.map((lo) => {
+                      const isEditingThisLo = editingLoId === lo.id;
+                      if (isEditingThisLo) {
+                        return (
+                          <div
+                            key={lo.id}
+                            className="p-2.5 bg-sky-50/70 border border-sky-300 rounded-xl space-y-2 animate-in fade-in-50 duration-150"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-black text-[#002B49]">
+                                Modifying {lo.code}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                Edit outcome text and Bloom's level
+                              </span>
+                            </div>
+                            <textarea
+                              rows={2}
+                              value={editingLoText}
+                              onChange={(e) => setEditingLoText(e.target.value)}
+                              className="w-full px-2.5 py-1.5 text-xs border border-sky-300 rounded-lg bg-white focus:outline-hidden focus:ring-2 focus:ring-sky-500/20"
+                              placeholder="Outcome statement..."
+                            />
+                            <div className="flex items-center justify-between gap-2">
+                              <select
+                                value={editingLoBloom}
+                                onChange={(e) => setEditingLoBloom(e.target.value as BloomsTaxonomy)}
+                                className="px-2 py-1 text-xs border border-slate-300 rounded-lg bg-white focus:outline-hidden"
+                              >
+                                <option value="Remember">Remember</option>
+                                <option value="Understand">Understand</option>
+                                <option value="Apply">Apply</option>
+                                <option value="Analyze">Analyze</option>
+                                <option value="Evaluate">Evaluate</option>
+                                <option value="Create">Create</option>
+                              </select>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={handleCancelEditSeriesLo}
+                                  className="px-2 py-1 text-xs font-semibold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleSaveEditSeriesLo}
+                                  disabled={!editingLoText.trim()}
+                                  className="px-2.5 py-1 text-xs font-bold rounded-lg bg-[#002B49] text-white hover:bg-sky-900 cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                                >
+                                  <Check className="w-3 h-3 text-amber-400" />
+                                  <span>Save</span>
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                          <p className="text-slate-600 leading-snug">{lo.text}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveSeriesLo(lo.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded-md shrink-0 cursor-pointer"
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={lo.id}
+                          className="flex items-start gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs group hover:border-slate-300 transition-colors"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
+                          <div className="flex-1 space-y-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-extrabold text-[#002B49]">{lo.code}</span>
+                              <span className="text-[9px] font-bold px-1 py-0.2 rounded bg-sky-100 text-sky-800">
+                                {lo.bloomLevel}
+                              </span>
+                            </div>
+                            <p className="text-slate-600 leading-snug">{lo.text}</p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditSeriesLo(lo)}
+                              className="p-1 text-slate-400 hover:text-[#002B49] hover:bg-slate-200 rounded-md cursor-pointer transition-colors"
+                              title={`Modify ${lo.code}`}
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSeriesLo(lo.id)}
+                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md cursor-pointer transition-colors"
+                              title={`Delete ${lo.code}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -1712,6 +1885,87 @@ export const SeriesList: React.FC<SeriesListProps> = ({
                     <span>Confirm Delete</span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Series LO Modifier Modal */}
+      {quickEditSeriesLo && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-lg bg-[#002B49] text-white text-xs font-black">
+                    {quickEditSeriesLo.code}
+                  </span>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Modify Series Outcome
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 mt-1 line-clamp-1">
+                  {quickEditSeriesLo.seriesName}
+                </p>
+              </div>
+              <button
+                onClick={() => setQuickEditSeriesLo(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Outcome Statement <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={quickEditSeriesLo.text}
+                  onChange={(e) => setQuickEditSeriesLo({ ...quickEditSeriesLo, text: e.target.value })}
+                  className="w-full px-3 py-2 text-xs sm:text-sm border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#002B49]/20 focus:border-[#002B49] text-slate-800 leading-relaxed"
+                  placeholder="Outcome statement..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Bloom's Taxonomy Level
+                </label>
+                <select
+                  value={quickEditSeriesLo.bloomLevel}
+                  onChange={(e) => setQuickEditSeriesLo({ ...quickEditSeriesLo, bloomLevel: e.target.value as BloomsTaxonomy })}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white text-slate-800 font-semibold focus:outline-hidden focus:ring-2 focus:ring-[#002B49]/20"
+                >
+                  <option value="Remember">Remember</option>
+                  <option value="Understand">Understand</option>
+                  <option value="Apply">Apply</option>
+                  <option value="Analyze">Analyze</option>
+                  <option value="Evaluate">Evaluate</option>
+                  <option value="Create">Create</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setQuickEditSeriesLo(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveQuickEditSeriesLo}
+                disabled={!quickEditSeriesLo.text.trim()}
+                className="px-4 py-2 rounded-xl bg-[#002B49] text-white text-xs font-bold hover:bg-sky-900 cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <Check className="w-3.5 h-3.5 text-amber-400" />
+                <span>Save Outcome</span>
               </button>
             </div>
           </div>

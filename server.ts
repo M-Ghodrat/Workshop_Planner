@@ -228,6 +228,17 @@ async function startServer() {
     res.json(db.courses);
   });
 
+  app.post('/api/sync-courses', (req: Request, res: Response) => {
+    const { courses } = req.body;
+    if (Array.isArray(courses) && courses.length > 0) {
+      db.courses = courses;
+      saveDatabase();
+      res.json({ success: true, count: courses.length });
+    } else {
+      res.status(400).json({ error: 'Invalid courses array' });
+    }
+  });
+
   app.post('/api/courses', (req: Request, res: Response) => {
     const newCourse = req.body;
     if (!newCourse.id) {
@@ -376,6 +387,7 @@ async function startServer() {
       middlewareMode: true,
       port: PORT,
       host: '0.0.0.0',
+      hmr: false,
     },
     appType: 'spa',
   });

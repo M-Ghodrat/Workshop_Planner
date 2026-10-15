@@ -15,10 +15,15 @@ import {
   Sliders,
   AlertCircle,
   Award,
+  RefreshCw,
+  Copy,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { courseService } from '../../services/courseService';
+import { seriesService } from '../../services/seriesService';
+import { workshopService } from '../../services/workshopService';
 import { Course, OutcomeMapping, Workshop, WorkshopSeries, LearningOutcome, BloomsTaxonomy, MatchLevel } from '../../types';
 import { isUserLeadOfSeries, isSeriesAssignedToDeveloper } from '../../utils/workshopPermissions';
 
@@ -35,8 +40,8 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
   workshops = [],
   mappings = [],
 }) => {
-  const { userProfile, isWorkshopLead } = useAuth();
-  const { success, error } = useToast();
+  const { currentUser, userProfile, isWorkshopLead, signInWithGoogle } = useAuth();
+  const { success, error, info, warning } = useToast();
 
   const canEdit = isWorkshopLead; // Workshop leads can map, others can only see
 
@@ -151,6 +156,22 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
   const [newLoBloom, setNewLoBloom] = useState<BloomsTaxonomy>('Understand');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Individual Course LO inline edit state
+  const [editingLoId, setEditingLoId] = useState<string | null>(null);
+  const [editingLoText, setEditingLoText] = useState('');
+  const [editingLoBloom, setEditingLoBloom] = useState<BloomsTaxonomy>('Understand');
+
+  // Quick LO Edit Modal (from Matrix Headers/Rows)
+  const [quickEditLo, setQuickEditLo] = useState<{
+    type: 'course' | 'series' | 'workshop';
+    ownerId: string;
+    ownerName: string;
+    loId: string;
+    code: string;
+    text: string;
+    bloomLevel: BloomsTaxonomy;
+  } | null>(null);
+
   // Delete Confirmation States
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -211,12 +232,208 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
   // Remove LO from Course Builder
   const handleRemoveCourseLo = (id: string) => {
     const filtered = courseLos.filter((lo) => lo.id !== id);
+    if (editingLoId === id) {
+      setEditingLoId(null);
+      setEditingLoText('');
+    }
     // Re-code
     const reCoded = filtered.map((lo, idx) => ({
       ...lo,
       code: `CO${idx + 1}`,
     }));
     setCourseLos(reCoded);
+  };
+
+  // Modify existing LO in Course Builder
+  const handleStartEditCourseLo = (lo: LearningOutcome) => {
+    setEditingLoId(lo.id);
+    setEditingLoText(lo.text);
+    setEditingLoBloom(lo.bloomLevel);
+  };
+
+  const handleSaveEditCourseLo = () => {
+    if (!editingLoId || !editingLoText.trim()) return;
+    setCourseLos((prev) =>
+      prev.map((lo) =>
+        lo.id === editingLoId
+          ? { ...lo, text: editingLoText.trim(), bloomLevel: editingLoBloom }
+          : lo
+      )
+    );
+    setEditingLoId(null);
+    setEditingLoText('');
+  };
+
+  const handleCancelEditCourseLo = () => {
+    setEditingLoId(null);
+    setEditingLoText('');
+  };
+
+  // Save Quick LO Edit from Matrix Headers or Rows
+  const handleSaveQuickEditLo = async () => {
+    if (!quickEditLo || !quickEditLo.text.trim()) return;
+    try {
+      if (quickEditLo.type === 'course') {
+        const targetCourse = courses.find((c) => c.id === quickEditLo.ownerId);
+        if (targetCourse) {
+          const updatedLos = (targetCourse.learningOutcomes || []).map((lo) =>
+            lo.id === quickEditLo.loId
+              ? { ...lo, text: quickEditLo.text.trim(), bloomLevel: quickEditLo.bloomLevel }
+              : lo
+          );
+          await courseService.updateCourse(targetCourse.id, { learningOutcomes: updatedLos });
+          success('Course Outcome Updated', `Outcome ${quickEditLo.code} updated successfully.`);
+        }
+      } else if (quickEditLo.type === 'series') {
+        const targetSeries = series.find((s) => s.id === quickEditLo.ownerId);
+        if (targetSeries) {
+          const updatedLos = (targetSeries.learningOutcomes || []).map((lo) =>
+            lo.id === quickEditLo.loId
+              ? { ...lo, text: quickEditLo.text.trim(), bloomLevel: quickEditLo.bloomLevel }
+              : lo
+          );
+          await seriesService.updateSeries(targetSeries.id, { learningOutcomes: updatedLos }, userProfile || undefined);
+          success('Series Outcome Updated', `Outcome ${quickEditLo.code} updated successfully.`);
+        }
+      } else if (quickEditLo.type === 'workshop') {
+        const targetWorkshop = workshops.find((w) => w.id === quickEditLo.ownerId);
+        if (targetWorkshop && userProfile) {
+          const updatedLos = (targetWorkshop.learningOutcomes || []).map((lo) =>
+            lo.id === quickEditLo.loId
+              ? { ...lo, text: quickEditLo.text.trim(), bloomLevel: quickEditLo.bloomLevel }
+              : lo
+          );
+          await workshopService.updateWorkshop(targetWorkshop.id, { learningOutcomes: updatedLos }, userProfile);
+          success('Workshop Outcome Updated', `Outcome ${quickEditLo.code} updated successfully.`);
+        }
+      }
+      setQuickEditLo(null);
+    } catch (err: any) {
+      error('Update Failed', err.message || 'Could not update outcome.');
+    }
+  };
+
+  const [isFirestoreModalOpen, setIsFirestoreModalOpen] = useState(false);
+  const [isSyncingFirestore, setIsSyncingFirestore] = useState(false);
+  const [importJsonText, setImportJsonText] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [syncModalTab, setSyncModalTab] = useState<'auth' | 'import' | 'export'>('auth');
+  const [copiedExport, setCopiedExport] = useState(false);
+
+  const handleCopyExportJson = () => {
+    try {
+      const exportData = courses.map((c) => ({
+        id: c.id,
+        prefix: c.prefix,
+        name: c.name,
+        description: c.description || '',
+        courseOutline: c.courseOutline || '',
+        seriesIds: c.seriesIds || [],
+        learningOutcomes: c.learningOutcomes || [],
+      }));
+      navigator.clipboard.writeText(JSON.stringify(exportData, null, 2));
+      setCopiedExport(true);
+      setTimeout(() => setCopiedExport(false), 2000);
+      success('Copied to Clipboard', `${courses.length} courses exported as JSON.`);
+    } catch {
+      error('Copy Failed', 'Please manually select and copy the JSON text.');
+    }
+  };
+
+  const handleSyncFirestore = async () => {
+    setIsSyncingFirestore(true);
+    try {
+      const res = await courseService.pullFromFirestore();
+      if (res.success) {
+        if (res.count > 0) {
+          success('Firestore Synchronized', `Successfully fetched ${res.count} course(s) from cloud Firestore database.`);
+        } else {
+          info('Firestore Connected', 'Firestore connection active. No courses currently in database.');
+        }
+      } else {
+        error('Firestore Sync Notice', res.error || 'Could not fetch courses from Firestore.');
+      }
+    } catch (e: any) {
+      error('Firestore Sync Error', e.message || 'Could not sync with Firestore.');
+    } finally {
+      setIsSyncingFirestore(false);
+    }
+  };
+
+  const handleGoogleConnectAndSync = async () => {
+    setIsSyncingFirestore(true);
+    try {
+      await signInWithGoogle();
+      const res = await courseService.pullFromFirestore();
+      if (res.success) {
+        success('Connected & Synchronized', `Connected to Firestore and loaded ${res.count} course(s).`);
+        setIsFirestoreModalOpen(false);
+      } else {
+        error('Firestore Sync Notice', res.error || 'Could not fetch courses from Firestore.');
+      }
+    } catch (err: any) {
+      error('Firestore Sync Notice', err.message || 'Could not fetch from Firestore.');
+    } finally {
+      setIsSyncingFirestore(false);
+    }
+  };
+
+  const handleImportCoursesJson = async () => {
+    if (!importJsonText.trim()) return;
+    setIsImporting(true);
+    try {
+      let parsed: any = JSON.parse(importJsonText.trim());
+      if (!Array.isArray(parsed)) {
+        if (parsed.courses && Array.isArray(parsed.courses)) {
+          parsed = parsed.courses;
+        } else {
+          parsed = [parsed];
+        }
+      }
+      const validCourses: Course[] = parsed.map((c: any, idx: number) => ({
+        id: c.id || `course_imported_${Date.now()}_${idx}`,
+        prefix: (c.prefix || 'BUSI').toUpperCase(),
+        name: c.name || c.title || `Course ${idx + 1}`,
+        description: c.description || '',
+        courseOutline: c.courseOutline || '',
+        seriesIds: Array.isArray(c.seriesIds) ? c.seriesIds : (selectedSeries?.id ? [selectedSeries.id] : []),
+        learningOutcomes: Array.isArray(c.learningOutcomes) ? c.learningOutcomes : [],
+        createdBy: userProfile?.id || 'admin',
+        createdAt: c.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }));
+
+      await fetch('/api/sync-courses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courses: validCourses }),
+      });
+      localStorage.setItem('ucw_cached_courses', JSON.stringify(validCourses));
+      await courseService.getAllCourses();
+      success('Courses Imported', `Loaded ${validCourses.length} course(s) into development environment.`);
+      setIsFirestoreModalOpen(false);
+      setImportJsonText('');
+    } catch (err: any) {
+      error('Invalid JSON', 'Please ensure the pasted data is valid JSON course format.');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleDeleteCourseLoDirect = async (courseId: string, loId: string) => {
+    const targetCourse = courses.find((c) => c.id === courseId);
+    if (!targetCourse) return;
+    const filtered = (targetCourse.learningOutcomes || []).filter((lo) => lo.id !== loId);
+    const renumbered = filtered.map((lo, idx) => ({ ...lo, code: `CO${idx + 1}` }));
+    try {
+      await courseService.updateCourse(courseId, { learningOutcomes: renumbered });
+      success('Outcome Deleted', 'Course learning outcome removed.');
+      if (selectedCourse?.id === courseId) {
+        setSelectedCourse({ ...targetCourse, learningOutcomes: renumbered });
+      }
+    } catch (err: any) {
+      error('Delete Failed', err.message || 'Could not delete outcome.');
+    }
   };
 
   // Save Course
@@ -231,8 +448,16 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
 
     setIsSubmitting(true);
     try {
-      // Automatically add any typed-in learning outcome text that was not explicitly added using the "Add Course LO" button
       let finalLos = [...courseLos];
+      // Save any pending edited LO if user was actively modifying an existing LO
+      if (editingLoId && editingLoText.trim()) {
+        finalLos = finalLos.map((lo) =>
+          lo.id === editingLoId
+            ? { ...lo, text: editingLoText.trim(), bloomLevel: editingLoBloom }
+            : lo
+        );
+      }
+      // Automatically add any typed-in learning outcome text that was not explicitly added using the "Add Course LO" button
       if (newLoText.trim()) {
         const autoLo: LearningOutcome = {
           id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9),
@@ -522,15 +747,39 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
           </p>
         </div>
 
-        {canEdit && (
+        <div className="flex items-center gap-2.5 flex-wrap">
           <button
-            onClick={() => handleOpenCourseModal()}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#002B49] hover:bg-[#003d66] text-white text-xs font-bold shadow-md transition-all cursor-pointer"
+            onClick={handleSyncFirestore}
+            disabled={isSyncingFirestore}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+            title="Fetch latest course data from Firestore database"
           >
-            <Plus className="w-4 h-4 text-amber-400" />
-            <span>Add University Course</span>
+            <RefreshCw className={`w-3.5 h-3.5 text-[#002B49] ${isSyncingFirestore ? 'animate-spin' : ''}`} />
+            <span>{isSyncingFirestore ? 'Syncing...' : 'Sync Firestore'}</span>
           </button>
-        )}
+
+          <button
+            onClick={() => {
+              setSyncModalTab('import');
+              setIsFirestoreModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-all cursor-pointer"
+            title="Import or Export Course Data JSON"
+          >
+            <Download className="w-3.5 h-3.5 text-slate-600" />
+            <span>Import / Export</span>
+          </button>
+
+          {canEdit && (
+            <button
+              onClick={() => handleOpenCourseModal()}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#002B49] hover:bg-[#003d66] text-white text-xs font-bold shadow-md transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4 text-amber-400" />
+              <span>Add University Course</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Role Notice Banner */}
@@ -633,21 +882,106 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
           {/* Selected Course Quick View Card */}
           {selectedCourse && (
             <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs space-y-3 text-left">
-              <div className="border-b border-slate-100 pb-2.5">
-                <span className="text-[10px] font-black uppercase tracking-widest text-[#002B49]">Active Course Focus</span>
-                <h4 className="text-sm font-bold text-slate-900 mt-0.5">{selectedCourse.prefix} Outline</h4>
+              <div className="border-b border-slate-100 pb-2.5 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-[#002B49]">Active Course Focus</span>
+                  <h4 className="text-sm font-bold text-slate-900 mt-0.5">{selectedCourse.prefix} Outline</h4>
+                </div>
+                {canEdit && (
+                  <button
+                    onClick={() => handleOpenCourseModal(selectedCourse)}
+                    className="p-1 text-slate-400 hover:text-[#002B49] hover:bg-slate-100 rounded-lg cursor-pointer"
+                    title="Edit Course Details"
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
-              <div className="space-y-2 text-xs">
+
+              <div className="space-y-3 text-xs">
                 <div>
                   <span className="font-semibold text-slate-500 block">Syllabus Overview:</span>
                   <p className="text-slate-600 mt-0.5 leading-relaxed">
                     {selectedCourse.description || 'No description provided.'}
                   </p>
                 </div>
+
+                {/* Course Learning Outcomes list with modify & delete */}
+                <div className="border-t border-slate-100 pt-2.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-700 text-xs">
+                      Course Outcomes ({selectedCourse.learningOutcomes?.length || 0})
+                    </span>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCourseModal(selectedCourse)}
+                        className="text-[10px] font-bold text-[#002B49] hover:underline flex items-center gap-0.5 cursor-pointer"
+                      >
+                        <Plus className="w-3 h-3 text-amber-500" />
+                        <span>Add LO</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {(!selectedCourse.learningOutcomes || selectedCourse.learningOutcomes.length === 0) ? (
+                    <p className="text-[11px] text-slate-400 italic">No learning outcomes added yet.</p>
+                  ) : (
+                    <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-0.5">
+                      {selectedCourse.learningOutcomes.map((lo) => (
+                        <div
+                          key={lo.id}
+                          className="p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-1 group hover:border-slate-300 transition-colors text-[11px]"
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-extrabold text-[#002B49]">{lo.code}</span>
+                              <span className={`text-[8px] font-bold uppercase tracking-wider px-1 py-0.2 rounded ${getBloomBadgeClass(lo.bloomLevel)}`}>
+                                {lo.bloomLevel}
+                              </span>
+                            </div>
+                            {canEdit && (
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  onClick={() => setQuickEditLo({
+                                    type: 'course',
+                                    ownerId: selectedCourse.id,
+                                    ownerName: selectedCourse.name,
+                                    loId: lo.id,
+                                    code: lo.code,
+                                    text: lo.text,
+                                    bloomLevel: lo.bloomLevel,
+                                  })}
+                                  className="p-0.5 text-slate-400 hover:text-[#002B49] rounded hover:bg-slate-200 cursor-pointer"
+                                  title={`Modify ${lo.code}`}
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteCourseLoDirect(selectedCourse.id, lo.id)}
+                                  className="p-0.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 cursor-pointer"
+                                  title={`Delete ${lo.code}`}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-slate-600 leading-snug font-medium line-clamp-3 hover:line-clamp-none">
+                            {lo.text}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {selectedCourse.courseOutline && (
-                  <div>
+                  <div className="border-t border-slate-100 pt-2">
                     <span className="font-semibold text-slate-500 block">Course Syllabus:</span>
-                    <p className="text-slate-600 mt-0.5 leading-relaxed whitespace-pre-line font-medium bg-slate-50 p-2 rounded-lg border border-slate-100 max-h-[300px] overflow-y-auto">
+                    <p className="text-slate-600 mt-0.5 leading-relaxed whitespace-pre-line font-medium bg-slate-50 p-2 rounded-lg border border-slate-100 max-h-[160px] overflow-y-auto">
                       {selectedCourse.courseOutline}
                     </p>
                   </div>
@@ -847,11 +1181,41 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
 
                       {/* Other headers: Course Learning Outcomes (CO columns) */}
                       {filteredCourseLos.map((co) => (
-                        <th key={co.id} className="p-3 text-center border-r border-slate-200 min-w-[140px] align-top">
+                        <th key={co.id} className="p-3 text-center border-r border-slate-200 min-w-[140px] align-top relative group/col">
                           <div className="space-y-1">
-                            <span className="px-2 py-0.5 text-[9px] font-black tracking-wider bg-[#002B49] text-amber-300 rounded-md">
-                              {co.code}
-                            </span>
+                            <div className="flex items-center justify-center gap-1">
+                              <span className="px-2 py-0.5 text-[9px] font-black tracking-wider bg-[#002B49] text-amber-300 rounded-md">
+                                {co.code}
+                              </span>
+                              {canEdit && selectedCourse && (
+                                <div className="flex items-center gap-0.5 opacity-0 group-hover/col:opacity-100 transition-opacity">
+                                  <button
+                                    type="button"
+                                    onClick={() => setQuickEditLo({
+                                      type: 'course',
+                                      ownerId: selectedCourse.id,
+                                      ownerName: selectedCourse.name,
+                                      loId: co.id,
+                                      code: co.code,
+                                      text: co.text,
+                                      bloomLevel: co.bloomLevel,
+                                    })}
+                                    className="p-1 text-slate-400 hover:text-[#002B49] rounded hover:bg-slate-200 cursor-pointer"
+                                    title={`Modify ${co.code}`}
+                                  >
+                                    <Edit className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteCourseLoDirect(selectedCourse.id, co.id)}
+                                    className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 cursor-pointer"
+                                    title={`Delete ${co.code}`}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                             <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded border uppercase tracking-wide block w-fit mx-auto ${getBloomBadgeClass(co.bloomLevel)}`}>
                               {co.bloomLevel}
                             </span>
@@ -877,15 +1241,35 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
                         (selectedSeries.learningOutcomes || []).map((lo) => (
                           <tr key={lo.id} className="hover:bg-sky-50/10 transition-colors">
                             {/* Series Outcome Detail in First Column */}
-                            <td className="p-4 border-r border-slate-200 text-left align-top max-w-[320px]">
+                            <td className="p-4 border-r border-slate-200 text-left align-top max-w-[320px] relative group/row">
                               <div className="space-y-1.5">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-black text-[#002B49] text-sm shrink-0">
-                                    {lo.code}
-                                  </span>
-                                  <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${getBloomBadgeClass(lo.bloomLevel)}`}>
-                                    {lo.bloomLevel}
-                                  </span>
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-black text-[#002B49] text-sm shrink-0">
+                                      {lo.code}
+                                    </span>
+                                    <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${getBloomBadgeClass(lo.bloomLevel)}`}>
+                                      {lo.bloomLevel}
+                                    </span>
+                                  </div>
+                                  {canEdit && selectedSeries && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setQuickEditLo({
+                                        type: 'series',
+                                        ownerId: selectedSeries.id,
+                                        ownerName: selectedSeries.name,
+                                        loId: lo.id,
+                                        code: lo.code,
+                                        text: lo.text,
+                                        bloomLevel: lo.bloomLevel,
+                                      })}
+                                      className="opacity-0 group-hover/row:opacity-100 transition-opacity p-1 text-slate-400 hover:text-[#002B49] rounded hover:bg-slate-100 cursor-pointer"
+                                      title={`Modify ${lo.code}`}
+                                    >
+                                      <Edit className="w-3 h-3" />
+                                    </button>
+                                  )}
                                 </div>
                                 <p className="text-xs font-semibold text-slate-700 leading-relaxed">
                                   {lo.text}
@@ -1059,7 +1443,7 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
                         flatWorkshopLos.map(({ workshop, lo }) => (
                           <tr key={`${workshop.id}-${lo.id}`} className="hover:bg-sky-50/10 transition-colors">
                             {/* Workshop Outcome Detail in First Column */}
-                            <td className="p-4 border-r border-slate-200 text-left align-top max-w-[320px]">
+                            <td className="p-4 border-r border-slate-200 text-left align-top max-w-[320px] relative group/wrow">
                               <div className="space-y-1.5 text-left">
                                 {/* Workshop badge/identifier */}
                                 <div className="flex items-center gap-1.5 mb-1 flex-wrap">
@@ -1071,13 +1455,33 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
                                   </span>
                                 </div>
 
-                                <div className="flex items-center gap-2">
-                                  <span className="font-black text-[#002B49] text-xs shrink-0">
-                                    {lo.code}
-                                  </span>
-                                  <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${getBloomBadgeClass(lo.bloomLevel)}`}>
-                                    {lo.bloomLevel}
-                                  </span>
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-black text-[#002B49] text-xs shrink-0">
+                                      {lo.code}
+                                    </span>
+                                    <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${getBloomBadgeClass(lo.bloomLevel)}`}>
+                                      {lo.bloomLevel}
+                                    </span>
+                                  </div>
+                                  {canEdit && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setQuickEditLo({
+                                        type: 'workshop',
+                                        ownerId: workshop.id,
+                                        ownerName: `${workshop.prefix} ${workshop.code}: ${workshop.title}`,
+                                        loId: lo.id,
+                                        code: lo.code,
+                                        text: lo.text,
+                                        bloomLevel: lo.bloomLevel,
+                                      })}
+                                      className="opacity-0 group-hover/wrow:opacity-100 transition-opacity p-1 text-slate-400 hover:text-[#002B49] rounded hover:bg-slate-100 cursor-pointer"
+                                      title={`Modify ${lo.code}`}
+                                    >
+                                      <Edit className="w-3 h-3" />
+                                    </button>
+                                  )}
                                 </div>
                                 <p className="text-xs font-semibold text-slate-700 leading-relaxed">
                                   {lo.text}
@@ -1360,27 +1764,101 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
                 </div>
 
                 {courseLos.length > 0 && (
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                    {courseLos.map((lo) => (
-                      <div key={lo.id} className="flex items-start gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs">
-                        <div className="flex-1 space-y-0.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-extrabold text-[#002B49]">{lo.code}</span>
-                            <span className="text-[9px] font-bold px-1 py-0.2 rounded bg-sky-100 text-sky-800">
-                              {lo.bloomLevel}
-                            </span>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {courseLos.map((lo) => {
+                      const isEditingThisLo = editingLoId === lo.id;
+                      if (isEditingThisLo) {
+                        return (
+                          <div
+                            key={lo.id}
+                            className="p-2.5 bg-sky-50/70 border border-sky-300 rounded-xl space-y-2 animate-in fade-in-50 duration-150"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-black text-[#002B49]">
+                                Modifying {lo.code}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                Edit outcome text and Bloom's level
+                              </span>
+                            </div>
+                            <textarea
+                              rows={2}
+                              value={editingLoText}
+                              onChange={(e) => setEditingLoText(e.target.value)}
+                              className="w-full px-2.5 py-1.5 text-xs border border-sky-300 rounded-lg bg-white focus:outline-hidden focus:ring-2 focus:ring-sky-500/20"
+                              placeholder="Outcome statement..."
+                            />
+                            <div className="flex items-center justify-between gap-2">
+                              <select
+                                value={editingLoBloom}
+                                onChange={(e) => setEditingLoBloom(e.target.value as BloomsTaxonomy)}
+                                className="px-2 py-1 text-xs border border-slate-300 rounded-lg bg-white focus:outline-hidden"
+                              >
+                                <option value="Remember">Remember</option>
+                                <option value="Understand">Understand</option>
+                                <option value="Apply">Apply</option>
+                                <option value="Analyze">Analyze</option>
+                                <option value="Evaluate">Evaluate</option>
+                                <option value="Create">Create</option>
+                              </select>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={handleCancelEditCourseLo}
+                                  className="px-2 py-1 text-xs font-semibold rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleSaveEditCourseLo}
+                                  disabled={!editingLoText.trim()}
+                                  className="px-2.5 py-1 text-xs font-bold rounded-lg bg-[#002B49] text-white hover:bg-sky-900 cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                                >
+                                  <Check className="w-3 h-3 text-amber-400" />
+                                  <span>Save</span>
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                          <p className="text-slate-600 leading-snug">{lo.text}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveCourseLo(lo.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 rounded-md shrink-0 cursor-pointer"
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={lo.id}
+                          className="flex items-start gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs group hover:border-slate-300 transition-colors"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
+                          <div className="flex-1 space-y-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-extrabold text-[#002B49]">{lo.code}</span>
+                              <span className="text-[9px] font-bold px-1 py-0.2 rounded bg-sky-100 text-sky-800">
+                                {lo.bloomLevel}
+                              </span>
+                            </div>
+                            <p className="text-slate-600 leading-snug">{lo.text}</p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditCourseLo(lo)}
+                              className="p-1 text-slate-400 hover:text-[#002B49] hover:bg-slate-200 rounded-md cursor-pointer transition-colors"
+                              title={`Modify ${lo.code}`}
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveCourseLo(lo.id)}
+                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md cursor-pointer transition-colors"
+                              title={`Delete ${lo.code}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -1535,6 +2013,276 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
                 {isDeleting ? 'Deleting...' : 'Yes, Delete Course'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick LO Modifier Modal */}
+      {quickEditLo && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-lg bg-[#002B49] text-white text-xs font-black">
+                    {quickEditLo.code}
+                  </span>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Modify Learning Outcome
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 mt-1 line-clamp-1">
+                  {quickEditLo.ownerName}
+                </p>
+              </div>
+              <button
+                onClick={() => setQuickEditLo(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Outcome Statement <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={quickEditLo.text}
+                  onChange={(e) => setQuickEditLo({ ...quickEditLo, text: e.target.value })}
+                  className="w-full px-3 py-2 text-xs sm:text-sm border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#002B49]/20 focus:border-[#002B49] text-slate-800 leading-relaxed"
+                  placeholder="Outcome statement..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Bloom's Taxonomy Level
+                </label>
+                <select
+                  value={quickEditLo.bloomLevel}
+                  onChange={(e) => setQuickEditLo({ ...quickEditLo, bloomLevel: e.target.value as BloomsTaxonomy })}
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white text-slate-800 font-semibold focus:outline-hidden focus:ring-2 focus:ring-[#002B49]/20"
+                >
+                  <option value="Remember">Remember</option>
+                  <option value="Understand">Understand</option>
+                  <option value="Apply">Apply</option>
+                  <option value="Analyze">Analyze</option>
+                  <option value="Evaluate">Evaluate</option>
+                  <option value="Create">Create</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setQuickEditLo(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveQuickEditLo}
+                disabled={!quickEditLo.text.trim()}
+                className="px-4 py-2 rounded-xl bg-[#002B49] text-white text-xs font-bold hover:bg-sky-900 cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5"
+              >
+                <Check className="w-3.5 h-3.5 text-amber-400" />
+                <span>Save Outcome</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cloud Firestore Sync & Google Authentication Modal */}
+      {isFirestoreModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in zoom-in-95 duration-150">
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#002B49] text-amber-400 flex items-center justify-center shadow-xs">
+                  <RefreshCw className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Firestore Cloud Database Sync</h3>
+                  <p className="text-xs text-slate-500">Connect and pull live courses from Firebase Firestore</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsFirestoreModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Tab navigation: Google Auth vs Direct JSON vs Export */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setSyncModalTab('auth')}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  syncModalTab === 'auth' ? 'bg-white text-[#002B49] shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Google Auth
+              </button>
+              <button
+                type="button"
+                onClick={() => setSyncModalTab('import')}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  syncModalTab === 'import' ? 'bg-white text-[#002B49] shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Import JSON
+              </button>
+              <button
+                type="button"
+                onClick={() => setSyncModalTab('export')}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  syncModalTab === 'export' ? 'bg-white text-[#002B49] shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Export JSON
+              </button>
+            </div>
+
+            {syncModalTab === 'auth' ? (
+              <div className="space-y-4 text-xs text-slate-600">
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-amber-950 space-y-1.5">
+                  <div className="flex items-center gap-2 font-bold text-amber-900 text-xs">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Why did "Missing permissions" happen?</span>
+                  </div>
+                  <p className="leading-relaxed">
+                    Your cloud Firestore project (<strong>ucw-workshop-planner</strong>) enforces security rules that require an active authenticated Firebase user (<code className="font-semibold text-amber-900">request.auth != null</code>). In this preview environment, you are running in a preset developer mode without an active Firebase Auth token.
+                  </p>
+                </div>
+
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                  <div className="font-bold text-slate-800 flex items-center justify-between">
+                    <span>Active Session Status:</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-extrabold">
+                      {currentUser ? 'Google Authenticated' : 'Preset Account (Unauthenticated on Firebase)'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Click the button below to sign in with your Google account (<code className="text-[#002B49] font-bold">mohsenghodrat2@gmail.com</code>). Once signed in, this development instance will directly read from and synchronize with your live cloud Firestore database!
+                  </p>
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleGoogleConnectAndSync}
+                    disabled={isSyncingFirestore}
+                    className="w-full py-2.5 px-4 rounded-xl bg-[#002B49] hover:bg-[#003d66] text-white text-xs font-bold shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-4 h-4 text-amber-400 ${isSyncingFirestore ? 'animate-spin' : ''}`} />
+                    <span>{isSyncingFirestore ? 'Authenticating & Fetching...' : 'Sign In with Google & Fetch Firestore Courses'}</span>
+                  </button>
+                </div>
+              </div>
+            ) : syncModalTab === 'import' ? (
+              <div className="space-y-4 text-xs text-slate-600">
+                <p className="text-slate-500 leading-relaxed">
+                  You can also paste courses directly as a JSON array or object. They will be immediately loaded into this development environment and saved to the server.
+                </p>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Course JSON Payload:
+                  </label>
+                  <textarea
+                    rows={6}
+                    value={importJsonText}
+                    onChange={(e) => setImportJsonText(e.target.value)}
+                    placeholder={`[
+  {
+    "id": "course-busi-654",
+    "prefix": "BUSI",
+    "name": "BUSI 654: Advanced Project Strategy",
+    "description": "...",
+    "learningOutcomes": [...]
+  }
+]`}
+                    className="w-full p-2.5 font-mono text-[11px] border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-[#002B49]/20"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsFirestoreModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleImportCoursesJson}
+                    disabled={!importJsonText.trim() || isImporting}
+                    className="px-4 py-2 rounded-xl bg-[#002B49] text-white text-xs font-bold hover:bg-sky-900 cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <Check className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{isImporting ? 'Importing...' : 'Import Courses to Dev'}</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 text-xs text-slate-600">
+                <p className="text-slate-500 leading-relaxed">
+                  Export all current courses from this applet as a clean JSON payload. You can copy this and import it anywhere.
+                </p>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                      Exported Courses ({courses.length})
+                    </label>
+                    <span className="text-[10px] text-slate-400">JSON Format</span>
+                  </div>
+                  <textarea
+                    rows={7}
+                    readOnly
+                    value={JSON.stringify(
+                      courses.map((c) => ({
+                        id: c.id,
+                        prefix: c.prefix,
+                        name: c.name,
+                        description: c.description || '',
+                        courseOutline: c.courseOutline || '',
+                        seriesIds: c.seriesIds || [],
+                        learningOutcomes: c.learningOutcomes || [],
+                      })),
+                      null,
+                      2
+                    )}
+                    className="w-full p-2.5 font-mono text-[11px] border border-slate-200 rounded-xl bg-slate-50 focus:outline-hidden"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsFirestoreModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCopyExportJson}
+                    className="px-4 py-2 rounded-xl bg-[#002B49] text-white text-xs font-bold hover:bg-sky-900 cursor-pointer shadow-xs flex items-center gap-1.5"
+                  >
+                    {copiedExport ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-amber-400" />}
+                    <span>{copiedExport ? 'Copied to Clipboard!' : 'Copy JSON to Clipboard'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

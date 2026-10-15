@@ -1,0 +1,12 @@
+{
+  "projectId": "ucw-workshop-planner",
+  "appId": "1:712007730290:web:76713a5254f7656f636eeb",
+  "apiKey": "AIzaSyAoA6LK04iM116qKFN8y5_ZjGjYpxE0eY8",
+  "authDomain": "ucw-workshop-planner.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-workshopplanner-d0c2e3a2-d296-40a7-bf60-068133983b2e",
+  "storageBucket": "ucw-workshop-planner.firebasestorage.app",
+  "messagingSenderId": "712007730290",
+  "measurementId": "",
+  "oAuthClientId": "712007730290-vu7n45ul0q9kso5cfod8ov3asaicu054.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
+}

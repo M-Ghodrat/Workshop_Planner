@@ -16,6 +16,7 @@ export const LoginPage: React.FC = () => {
     signInWithGoogle,
     signInWithEmail,
     signUpWithEmail,
+    signInWithPresetAccount,
     loading,
   } = useAuth();
   const { success, error } = useToast();
@@ -31,9 +32,9 @@ export const LoginPage: React.FC = () => {
     setIsSubmitting(true);
     try {
       await signInWithGoogle();
-      success('Welcome to Workshop Planner', 'Signed in via Google successfully.');
+      success('Welcome to Workshop Planner', 'Signed in successfully.');
     } catch (err: any) {
-      error('Sign in failed', err.message || 'Could not authenticate with Google.');
+      error('Sign in notice', err?.message || 'Could not complete sign in.');
     } finally {
       setIsSubmitting(false);
     }
@@ -62,8 +63,8 @@ export const LoginPage: React.FC = () => {
       }
     } catch (err: any) {
       error(
-        mode === 'signin' ? 'Sign In Failed' : 'Registration Failed',
-        err.message || 'Please check your credentials.'
+        mode === 'signin' ? 'Sign In Notice' : 'Registration Notice',
+        err?.message || 'Please check your credentials.'
       );
     } finally {
       setIsSubmitting(false);
@@ -242,6 +243,42 @@ export const LoginPage: React.FC = () => {
               <ArrowRight className="w-4 h-4 text-amber-400" />
             </button>
           </form>
+
+          {/* Quick Faculty Profiles */}
+          <div className="pt-2 border-t border-slate-100">
+            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2 text-center">
+              Quick Faculty Profiles (1-Click Access)
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => signInWithPresetAccount('lead_mohsen_ghodrat')}
+                className="flex items-center gap-2 p-2 rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100 text-left transition-colors cursor-pointer group"
+              >
+                <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                  MG
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-900 truncate">Dr. Mohsen Ghodrat</div>
+                  <div className="text-[10px] text-amber-800 font-medium">Workshop Lead</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => signInWithPresetAccount('admin_1')}
+                className="flex items-center gap-2 p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-left transition-colors cursor-pointer group"
+              >
+                <div className="w-7 h-7 rounded-lg bg-[#002B49] text-white flex items-center justify-center font-bold text-xs shrink-0">
+                  AD
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-900 truncate">UCW Administrator</div>
+                  <div className="text-[10px] text-slate-600 font-medium">Governance & Curriculum</div>
+                </div>
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Footer info */}

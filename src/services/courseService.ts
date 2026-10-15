@@ -2,12 +2,12 @@ import {
   collection,
   doc,
   getDocs,
-  addDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
   onSnapshot,
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { db, auth } from '../config/firebase';
 import { Course, OutcomeMapping, MatchLevel, UserProfile } from '../types';
 import { INITIAL_COURSES, INITIAL_MAPPINGS } from '../data/initialData';
 
@@ -82,7 +82,7 @@ function notifyMappingSubscribers(list: OutcomeMapping[]) {
 }
 
 export const courseService = {
-  // Subscribe to all courses in real-time
+  // Subscribe to all courses in real-time (both live Firestore & server sync)
   subscribeCourses: (
     onSuccess: (courses: Course[]) => void,
     onError?: (err: any) => void
@@ -90,11 +90,58 @@ export const courseService = {
     courseSubscribers.add(onSuccess);
     onSuccess(getCachedCourses());
 
-    // Fetch from persistent server database
+    // 1. Direct Firestore real-time listener (attaches immediately to provisioned database)
+    let unsubscribeFirestore: (() => void) | null = null;
+    const attachFirestoreListener = () => {
+      if (unsubscribeFirestore) {
+        try {
+          unsubscribeFirestore();
+        } catch {}
+        unsubscribeFirestore = null;
+      }
+      try {
+        const collRef = collection(db, COURSES_COLLECTION);
+        unsubscribeFirestore = onSnapshot(
+          collRef,
+          (snap) => {
+            if (!snap.empty) {
+              const liveList: Course[] = snap.docs.map((d) => ({
+                id: d.id,
+                ...(d.data() as any),
+              }));
+              notifyCourseSubscribers(liveList);
+              // Sync with local server database
+              fetch('/api/sync-courses', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ courses: liveList }),
+              }).catch(() => {});
+            }
+          },
+          (firestoreErr) => {
+            console.debug('Firestore live subscription notice (using server/cached data):', firestoreErr.message);
+          }
+        );
+      } catch (e) {
+        console.debug('Could not setup Firestore onSnapshot:', e);
+      }
+    };
+
+    // Attach immediately
+    attachFirestoreListener();
+
+    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+      if (user) {
+        attachFirestoreListener();
+        courseService.pullFromFirestore().catch(() => {});
+      }
+    });
+
+    // 2. Fetch from persistent server database
     fetch('/api/courses')
       .then((res) => (res.ok ? res.json() : null))
       .then((list) => {
-        if (Array.isArray(list)) {
+        if (Array.isArray(list) && list.length > 0) {
           notifyCourseSubscribers(list);
         }
       })
@@ -106,7 +153,7 @@ export const courseService = {
       fetch('/api/courses')
         .then((res) => (res.ok ? res.json() : null))
         .then((list) => {
-          if (Array.isArray(list)) notifyCourseSubscribers(list);
+          if (Array.isArray(list) && list.length > 0) notifyCourseSubscribers(list);
         })
         .catch(() => {});
     };
@@ -116,18 +163,63 @@ export const courseService = {
 
     return () => {
       courseSubscribers.delete(onSuccess);
+      if (unsubscribeFirestore) unsubscribeFirestore();
+      if (unsubscribeAuth) unsubscribeAuth();
       if (typeof window !== 'undefined') {
         window.removeEventListener('focus', onFocus);
       }
     };
   },
 
+  // Pull explicitly from Firestore on demand
+  pullFromFirestore: async (): Promise<{ success: boolean; count: number; error?: string }> => {
+    try {
+      const snap = await getDocs(collection(db, COURSES_COLLECTION));
+      if (!snap.empty) {
+        const liveList: Course[] = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as any),
+        }));
+        notifyCourseSubscribers(liveList);
+        await fetch('/api/sync-courses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ courses: liveList }),
+        }).catch(() => {});
+        return { success: true, count: liveList.length };
+      }
+      return { success: true, count: 0 };
+    } catch (err: any) {
+      console.warn('Manual pull from Firestore notice:', err);
+      return {
+        success: false,
+        count: 0,
+        error: err.message || 'Permission denied or Firestore unreachable',
+      };
+    }
+  },
+
   getAllCourses: async (): Promise<Course[]> => {
+    // Try Firestore direct first
+    try {
+      const snap = await getDocs(collection(db, COURSES_COLLECTION));
+      if (!snap.empty) {
+        const liveList: Course[] = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as any),
+        }));
+        notifyCourseSubscribers(liveList);
+        return liveList;
+      }
+    } catch (e) {
+      console.debug('Direct Firestore getDocs notice:', e);
+    }
+
     try {
       const res = await fetch('/api/courses');
       if (res.ok) {
         const list: Course[] = await res.json();
-        if (Array.isArray(list)) {
+        if (Array.isArray(list) && list.length > 0) {
           notifyCourseSubscribers(list);
           return list;
         }
@@ -154,6 +246,14 @@ export const courseService = {
     const cached = getCachedCourses();
     notifyCourseSubscribers([newCourse, ...cached]);
 
+    // Persist to Firestore
+    try {
+      await setDoc(doc(db, COURSES_COLLECTION, newId), newCourse);
+    } catch (error) {
+      console.debug('Firestore course write notice:', error);
+    }
+
+    // Persist to local server
     try {
       const res = await fetch('/api/courses', {
         method: 'POST',
@@ -186,6 +286,17 @@ export const courseService = {
       notifyCourseSubscribers(updatedList);
     }
 
+    // Persist to Firestore
+    try {
+      await updateDoc(doc(db, COURSES_COLLECTION, id), {
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.debug('Firestore course update notice:', error);
+    }
+
+    // Persist to local server
     try {
       await fetch(`/api/courses/${encodeURIComponent(id)}`, {
         method: 'PUT',
@@ -206,6 +317,14 @@ export const courseService = {
     const mappings = getCachedMappings();
     notifyMappingSubscribers(mappings.filter((m) => m.courseId !== id));
 
+    // Delete from Firestore
+    try {
+      await deleteDoc(doc(db, COURSES_COLLECTION, id));
+    } catch (error) {
+      console.debug('Firestore course delete notice:', error);
+    }
+
+    // Delete from local server
     try {
       await fetch(`/api/courses/${encodeURIComponent(id)}`, { method: 'DELETE' });
     } catch (error) {
@@ -225,6 +344,28 @@ export const courseService = {
   ) => {
     mappingSubscribers.add(onSuccess);
     onSuccess(getCachedMappings());
+
+    let unsubscribeFirestore: (() => void) | null = null;
+    try {
+      const collRef = collection(db, MAPPINGS_COLLECTION);
+      unsubscribeFirestore = onSnapshot(
+        collRef,
+        (snap) => {
+          if (!snap.empty) {
+            const liveMappings: OutcomeMapping[] = snap.docs.map((d) => ({
+              id: d.id,
+              ...(d.data() as any),
+            }));
+            notifyMappingSubscribers(liveMappings);
+          }
+        },
+        (err) => {
+          console.debug('Firestore mappings subscription notice:', err.message);
+        }
+      );
+    } catch (e) {
+      console.debug('Could not setup Firestore mappings onSnapshot:', e);
+    }
 
     fetch('/api/mappings')
       .then((res) => (res.ok ? res.json() : null))
@@ -251,6 +392,7 @@ export const courseService = {
 
     return () => {
       mappingSubscribers.delete(onSuccess);
+      if (unsubscribeFirestore) unsubscribeFirestore();
       if (typeof window !== 'undefined') {
         window.removeEventListener('focus', onFocus);
       }
