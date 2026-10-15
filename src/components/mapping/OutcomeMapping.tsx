@@ -15,9 +15,6 @@ import {
   Sliders,
   AlertCircle,
   Award,
-  RefreshCw,
-  Copy,
-  Download,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -40,7 +37,7 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
   workshops = [],
   mappings = [],
 }) => {
-  const { currentUser, userProfile, isWorkshopLead, signInWithGoogle } = useAuth();
+  const { currentUser, userProfile, isWorkshopLead } = useAuth();
   const { success, error, info, warning } = useToast();
 
   const canEdit = isWorkshopLead; // Workshop leads can map, others can only see
@@ -313,110 +310,19 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
     }
   };
 
-  const [isFirestoreModalOpen, setIsFirestoreModalOpen] = useState(false);
-  const [isSyncingFirestore, setIsSyncingFirestore] = useState(false);
-  const [importJsonText, setImportJsonText] = useState('');
-  const [isImporting, setIsImporting] = useState(false);
-  const [syncModalTab, setSyncModalTab] = useState<'auth' | 'import' | 'export'>('auth');
-  const [copiedExport, setCopiedExport] = useState(false);
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+  const [isClearingMappings, setIsClearingMappings] = useState(false);
 
-  const handleCopyExportJson = () => {
+  const handleClearAllMappings = async () => {
+    setIsClearingMappings(true);
     try {
-      const exportData = courses.map((c) => ({
-        id: c.id,
-        prefix: c.prefix,
-        name: c.name,
-        description: c.description || '',
-        courseOutline: c.courseOutline || '',
-        seriesIds: c.seriesIds || [],
-        learningOutcomes: c.learningOutcomes || [],
-      }));
-      navigator.clipboard.writeText(JSON.stringify(exportData, null, 2));
-      setCopiedExport(true);
-      setTimeout(() => setCopiedExport(false), 2000);
-      success('Copied to Clipboard', `${courses.length} courses exported as JSON.`);
-    } catch {
-      error('Copy Failed', 'Please manually select and copy the JSON text.');
-    }
-  };
-
-  const handleSyncFirestore = async () => {
-    setIsSyncingFirestore(true);
-    try {
-      const res = await courseService.pullFromFirestore();
-      if (res.success) {
-        if (res.count > 0) {
-          success('Firestore Synchronized', `Successfully fetched ${res.count} course(s) from cloud Firestore database.`);
-        } else {
-          info('Firestore Connected', 'Firestore connection active. No courses currently in database.');
-        }
-      } else {
-        error('Firestore Sync Notice', res.error || 'Could not fetch courses from Firestore.');
-      }
-    } catch (e: any) {
-      error('Firestore Sync Error', e.message || 'Could not sync with Firestore.');
-    } finally {
-      setIsSyncingFirestore(false);
-    }
-  };
-
-  const handleGoogleConnectAndSync = async () => {
-    setIsSyncingFirestore(true);
-    try {
-      await signInWithGoogle();
-      const res = await courseService.pullFromFirestore();
-      if (res.success) {
-        success('Connected & Synchronized', `Connected to Firestore and loaded ${res.count} course(s).`);
-        setIsFirestoreModalOpen(false);
-      } else {
-        error('Firestore Sync Notice', res.error || 'Could not fetch courses from Firestore.');
-      }
+      await courseService.clearAllMappings();
+      success('Mappings Cleared', 'All existing outcome mappings have been removed. You can now apply new mappings.');
+      setIsClearConfirmOpen(false);
     } catch (err: any) {
-      error('Firestore Sync Notice', err.message || 'Could not fetch from Firestore.');
+      error('Clear Failed', err.message || 'Could not clear mappings.');
     } finally {
-      setIsSyncingFirestore(false);
-    }
-  };
-
-  const handleImportCoursesJson = async () => {
-    if (!importJsonText.trim()) return;
-    setIsImporting(true);
-    try {
-      let parsed: any = JSON.parse(importJsonText.trim());
-      if (!Array.isArray(parsed)) {
-        if (parsed.courses && Array.isArray(parsed.courses)) {
-          parsed = parsed.courses;
-        } else {
-          parsed = [parsed];
-        }
-      }
-      const validCourses: Course[] = parsed.map((c: any, idx: number) => ({
-        id: c.id || `course_imported_${Date.now()}_${idx}`,
-        prefix: (c.prefix || 'BUSI').toUpperCase(),
-        name: c.name || c.title || `Course ${idx + 1}`,
-        description: c.description || '',
-        courseOutline: c.courseOutline || '',
-        seriesIds: Array.isArray(c.seriesIds) ? c.seriesIds : (selectedSeries?.id ? [selectedSeries.id] : []),
-        learningOutcomes: Array.isArray(c.learningOutcomes) ? c.learningOutcomes : [],
-        createdBy: userProfile?.id || 'admin',
-        createdAt: c.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }));
-
-      await fetch('/api/sync-courses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ courses: validCourses }),
-      });
-      localStorage.setItem('ucw_cached_courses', JSON.stringify(validCourses));
-      await courseService.getAllCourses();
-      success('Courses Imported', `Loaded ${validCourses.length} course(s) into development environment.`);
-      setIsFirestoreModalOpen(false);
-      setImportJsonText('');
-    } catch (err: any) {
-      error('Invalid JSON', 'Please ensure the pasted data is valid JSON course format.');
-    } finally {
-      setIsImporting(false);
+      setIsClearingMappings(false);
     }
   };
 
@@ -748,27 +654,16 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
-          <button
-            onClick={handleSyncFirestore}
-            disabled={isSyncingFirestore}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-all cursor-pointer disabled:opacity-50"
-            title="Fetch latest course data from Firestore database"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-[#002B49] ${isSyncingFirestore ? 'animate-spin' : ''}`} />
-            <span>{isSyncingFirestore ? 'Syncing...' : 'Sync Firestore'}</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setSyncModalTab('import');
-              setIsFirestoreModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-all cursor-pointer"
-            title="Import or Export Course Data JSON"
-          >
-            <Download className="w-3.5 h-3.5 text-slate-600" />
-            <span>Import / Export</span>
-          </button>
+          {canEdit && mappings.length > 0 && (
+            <button
+              onClick={() => setIsClearConfirmOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-rose-200 hover:bg-rose-50 text-rose-700 text-xs font-bold shadow-2xs transition-all cursor-pointer"
+              title="Remove all existing mappings to apply new ones"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+              <span>Clear All Mappings ({mappings.length})</span>
+            </button>
+          )}
 
           {canEdit && (
             <button
@@ -2098,191 +1993,50 @@ export const OutcomeMappingView: React.FC<OutcomeMappingProps> = ({
         </div>
       )}
 
-      {/* Cloud Firestore Sync & Google Authentication Modal */}
-      {isFirestoreModalOpen && (
+      {/* Clear All Mappings Confirmation Modal */}
+      {isClearConfirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in zoom-in-95 duration-150">
             <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#002B49] text-amber-400 flex items-center justify-center shadow-xs">
-                  <RefreshCw className="w-5 h-5" />
+                <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shadow-xs">
+                  <Trash2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Firestore Cloud Database Sync</h3>
-                  <p className="text-xs text-slate-500">Connect and pull live courses from Firebase Firestore</p>
+                  <h3 className="text-base font-bold text-slate-900">Remove All Mappings?</h3>
+                  <p className="text-xs text-slate-500">Reset learning outcome alignment matrix</p>
                 </div>
               </div>
               <button
-                onClick={() => setIsFirestoreModalOpen(false)}
+                onClick={() => setIsClearConfirmOpen(false)}
                 className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Tab navigation: Google Auth vs Direct JSON vs Export */}
-            <div className="flex items-center bg-slate-100 p-1 rounded-xl">
+            <p className="text-xs text-slate-600 leading-relaxed">
+              This will remove all <strong>{mappings.length}</strong> existing outcome mappings from both your cloud database and local cache so you can apply new mappings from scratch. This action cannot be undone.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
                 type="button"
-                onClick={() => setSyncModalTab('auth')}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  syncModalTab === 'auth' ? 'bg-white text-[#002B49] shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
+                onClick={() => setIsClearConfirmOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
-                Google Auth
+                Cancel
               </button>
               <button
                 type="button"
-                onClick={() => setSyncModalTab('import')}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  syncModalTab === 'import' ? 'bg-white text-[#002B49] shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
+                onClick={handleClearAllMappings}
+                disabled={isClearingMappings}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
               >
-                Import JSON
-              </button>
-              <button
-                type="button"
-                onClick={() => setSyncModalTab('export')}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  syncModalTab === 'export' ? 'bg-white text-[#002B49] shadow-2xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Export JSON
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{isClearingMappings ? 'Removing...' : 'Yes, Remove All Mappings'}</span>
               </button>
             </div>
-
-            {syncModalTab === 'auth' ? (
-              <div className="space-y-4 text-xs text-slate-600">
-                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-amber-950 space-y-1.5">
-                  <div className="flex items-center gap-2 font-bold text-amber-900 text-xs">
-                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span>Why did "Missing permissions" happen?</span>
-                  </div>
-                  <p className="leading-relaxed">
-                    Your cloud Firestore project (<strong>ucw-workshop-planner</strong>) enforces security rules that require an active authenticated Firebase user (<code className="font-semibold text-amber-900">request.auth != null</code>). In this preview environment, you are running in a preset developer mode without an active Firebase Auth token.
-                  </p>
-                </div>
-
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                  <div className="font-bold text-slate-800 flex items-center justify-between">
-                    <span>Active Session Status:</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-extrabold">
-                      {currentUser ? 'Google Authenticated' : 'Preset Account (Unauthenticated on Firebase)'}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
-                    Click the button below to sign in with your Google account (<code className="text-[#002B49] font-bold">mohsenghodrat2@gmail.com</code>). Once signed in, this development instance will directly read from and synchronize with your live cloud Firestore database!
-                  </p>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    onClick={handleGoogleConnectAndSync}
-                    disabled={isSyncingFirestore}
-                    className="w-full py-2.5 px-4 rounded-xl bg-[#002B49] hover:bg-[#003d66] text-white text-xs font-bold shadow-md transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    <RefreshCw className={`w-4 h-4 text-amber-400 ${isSyncingFirestore ? 'animate-spin' : ''}`} />
-                    <span>{isSyncingFirestore ? 'Authenticating & Fetching...' : 'Sign In with Google & Fetch Firestore Courses'}</span>
-                  </button>
-                </div>
-              </div>
-            ) : syncModalTab === 'import' ? (
-              <div className="space-y-4 text-xs text-slate-600">
-                <p className="text-slate-500 leading-relaxed">
-                  You can also paste courses directly as a JSON array or object. They will be immediately loaded into this development environment and saved to the server.
-                </p>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Course JSON Payload:
-                  </label>
-                  <textarea
-                    rows={6}
-                    value={importJsonText}
-                    onChange={(e) => setImportJsonText(e.target.value)}
-                    placeholder={`[
-  {
-    "id": "course-busi-654",
-    "prefix": "BUSI",
-    "name": "BUSI 654: Advanced Project Strategy",
-    "description": "...",
-    "learningOutcomes": [...]
-  }
-]`}
-                    className="w-full p-2.5 font-mono text-[11px] border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-[#002B49]/20"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsFirestoreModalOpen(false)}
-                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleImportCoursesJson}
-                    disabled={!importJsonText.trim() || isImporting}
-                    className="px-4 py-2 rounded-xl bg-[#002B49] text-white text-xs font-bold hover:bg-sky-900 cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    <Check className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{isImporting ? 'Importing...' : 'Import Courses to Dev'}</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4 text-xs text-slate-600">
-                <p className="text-slate-500 leading-relaxed">
-                  Export all current courses from this applet as a clean JSON payload. You can copy this and import it anywhere.
-                </p>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                      Exported Courses ({courses.length})
-                    </label>
-                    <span className="text-[10px] text-slate-400">JSON Format</span>
-                  </div>
-                  <textarea
-                    rows={7}
-                    readOnly
-                    value={JSON.stringify(
-                      courses.map((c) => ({
-                        id: c.id,
-                        prefix: c.prefix,
-                        name: c.name,
-                        description: c.description || '',
-                        courseOutline: c.courseOutline || '',
-                        seriesIds: c.seriesIds || [],
-                        learningOutcomes: c.learningOutcomes || [],
-                      })),
-                      null,
-                      2
-                    )}
-                    className="w-full p-2.5 font-mono text-[11px] border border-slate-200 rounded-xl bg-slate-50 focus:outline-hidden"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsFirestoreModalOpen(false)}
-                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
-                  >
-                    Close
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCopyExportJson}
-                    className="px-4 py-2 rounded-xl bg-[#002B49] text-white text-xs font-bold hover:bg-sky-900 cursor-pointer shadow-xs flex items-center gap-1.5"
-                  >
-                    {copiedExport ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-amber-400" />}
-                    <span>{copiedExport ? 'Copied to Clipboard!' : 'Copy JSON to Clipboard'}</span>
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}

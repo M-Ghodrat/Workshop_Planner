@@ -321,6 +321,12 @@ async function startServer() {
     res.json({ success: true, deletedId: id });
   });
 
+  app.post('/api/clear-mappings', (_req: Request, res: Response) => {
+    db.mappings = [];
+    saveDatabase();
+    res.json({ success: true, count: 0 });
+  });
+
   // Materials
   app.get('/api/materials', (_req: Request, res: Response) => {
     res.json(db.materials);

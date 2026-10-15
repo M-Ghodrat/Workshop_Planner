@@ -38,13 +38,12 @@ const saveCachedCourses = (list: Course[]) => {
 const getCachedMappings = (): OutcomeMapping[] => {
   try {
     const raw = localStorage.getItem(MAPPINGS_STORAGE_KEY);
-    if (raw) {
+    if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch {}
-  localStorage.setItem(MAPPINGS_STORAGE_KEY, JSON.stringify(INITIAL_MAPPINGS));
-  return INITIAL_MAPPINGS;
+  return [];
 };
 
 const saveCachedMappings = (list: OutcomeMapping[]) => {
@@ -351,13 +350,11 @@ export const courseService = {
       unsubscribeFirestore = onSnapshot(
         collRef,
         (snap) => {
-          if (!snap.empty) {
-            const liveMappings: OutcomeMapping[] = snap.docs.map((d) => ({
-              id: d.id,
-              ...(d.data() as any),
-            }));
-            notifyMappingSubscribers(liveMappings);
-          }
+          const liveMappings: OutcomeMapping[] = snap.docs.map((d) => ({
+            id: d.id,
+            ...(d.data() as any),
+          }));
+          notifyMappingSubscribers(liveMappings);
         },
         (err) => {
           console.debug('Firestore mappings subscription notice:', err.message);
@@ -430,6 +427,13 @@ export const courseService = {
     const cached = getCachedMappings();
     notifyMappingSubscribers([newMapping, ...cached]);
 
+    // Direct Firestore write (works in AI Studio and on Netlify)
+    try {
+      await setDoc(doc(db, MAPPINGS_COLLECTION, newId), newMapping);
+    } catch (e) {
+      console.debug('Firestore direct createMapping notice:', e);
+    }
+
     try {
       const res = await fetch('/api/mappings', {
         method: 'POST',
@@ -449,6 +453,13 @@ export const courseService = {
   deleteMapping: async (id: string): Promise<void> => {
     const cached = getCachedMappings();
     notifyMappingSubscribers(cached.filter((m) => m.id !== id));
+
+    // Direct Firestore delete
+    try {
+      await deleteDoc(doc(db, MAPPINGS_COLLECTION, id));
+    } catch (e) {
+      console.debug('Firestore direct deleteMapping notice:', e);
+    }
 
     try {
       await fetch(`/api/mappings/${encodeURIComponent(id)}`, { method: 'DELETE' });
@@ -486,6 +497,16 @@ export const courseService = {
       };
       const updatedList = mappings.map((m) => (m.id === existing.id ? updated : m));
       notifyMappingSubscribers(updatedList);
+
+      // Direct Firestore update
+      try {
+        await updateDoc(doc(db, MAPPINGS_COLLECTION, existing.id), {
+          matchLevel: mappingData.matchLevel,
+          mappedBy: user.id,
+        });
+      } catch (e) {
+        console.debug('Firestore direct updateDoc notice:', e);
+      }
 
       try {
         await fetch(`/api/mappings/${encodeURIComponent(existing.id)}`, {
@@ -547,5 +568,22 @@ export const courseService = {
       },
       user
     );
+  },
+
+  clearAllMappings: async (): Promise<void> => {
+    try {
+      const snap = await getDocs(collection(db, MAPPINGS_COLLECTION));
+      const deletePromises = snap.docs.map((d) => deleteDoc(doc(db, MAPPINGS_COLLECTION, d.id)));
+      await Promise.all(deletePromises);
+    } catch (e) {
+      console.warn('Firestore clearAllMappings notice:', e);
+    }
+
+    try {
+      await fetch('/api/clear-mappings', { method: 'POST' });
+    } catch {}
+
+    saveCachedMappings([]);
+    notifyMappingSubscribers([]);
   },
 };

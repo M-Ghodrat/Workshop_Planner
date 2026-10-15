@@ -1159,39 +1159,41 @@
   "courses": [
     {
       "id": "30SO82boYzLbdo0JrOId",
-      "createdBy": "lead_mohsen_ghodrat",
-      "name": "Application of AI in Business",
-      "description": "This course explores the applications of Artificial Intelligence (AI) in different business domains, including\nmarketing, finance, strategy, operations, human resources, Equity, Diversity, Inclusion and Indigeneity (EDII),\nsustainability, and product development. Additionally, the course introduces AI tools and their practical\napplications across these domains.",
       "courseOutline": "• Introduction to AI in Business\n• AI in Marketing and Customer Engagement\n• AI in Finance and Investment\n• AI in Human Resources and Talent Management\n• AI in Operations and Supply Chain\n• AI in Business Strategy\n• AI and Equity, Diversity, Inclusion, and Indigeneity (EDII)\n• AI and Sustainability\n• AI in Product Development and Innovation\n• Final Project and Future Trends",
-      "updatedAt": "2026-09-28T22:38:59.028Z",
-      "createdAt": "2026-09-26T10:21:34.314Z",
       "seriesIds": [
         "series_ai_explorer"
       ],
-      "prefix": "BUSI 654",
+      "name": "Application of AI in Business",
+      "createdBy": "lead_mohsen_ghodrat",
       "learningOutcomes": [
         {
           "text": "Evaluate and critically analyze real-world AI applications in business, considering ethical considerations such as bias, transparency, and privacy",
+          "id": "b3c882c5-73d6-4001-ab9b-67a0ec686b86",
           "code": "CO1",
-          "bloomLevel": "Evaluate",
-          "id": "b3c882c5-73d6-4001-ab9b-67a0ec686b86"
+          "bloomLevel": "Evaluate"
         },
         {
-          "code": "CO2",
-          "text": "Apply AI techniques and tools to solve current business challenges",
           "bloomLevel": "Apply",
-          "id": "5eb78cdc-4a8d-4269-97f0-7bc4beeb73d9"
+          "code": "CO2",
+          "id": "5eb78cdc-4a8d-4269-97f0-7bc4beeb73d9",
+          "text": "Apply AI techniques and tools to solve current business challenges"
         },
         {
-          "text": "Develop skills for continuously monitoring and adapting to evolving AI trends and technologies",
-          "code": "CO3",
           "id": "5dccfb63-7d83-402e-94c8-af73e15a0b5e",
-          "bloomLevel": "Apply"
+          "text": "Develop skills for continuously monitoring and adapting to evolving AI trends and technologies",
+          "bloomLevel": "Apply",
+          "code": "CO3"
         }
-      ]
+      ],
+      "createdAt": "2026-09-26T10:21:34.314Z",
+      "description": "This course explores the applications of Artificial Intelligence (AI) in different business domains, including\nmarketing, finance, strategy, operations, human resources, Equity, Diversity, Inclusion and Indigeneity (EDII),\nsustainability, and product development. Additionally, the course introduces AI tools and their practical\napplications across these domains.",
+      "updatedAt": "2026-09-28T22:38:59.028Z",
+      "prefix": "BUSI 654"
     },
     {
       "id": "IgtRN6xwq70QO03rHhsP",
+      "prefix": "BUSI 641",
+      "createdBy": "lead_cheryl_thomas",
       "learningOutcomes": [
         {
           "text": "Apply the mindset of an entrepreneur and assess one’s own potential of becoming an entrepreneur.",
@@ -1200,110 +1202,41 @@
           "id": "a2cb818b-761b-4821-991b-16c74272b04f"
         },
         {
-          "code": "CO2",
           "text": "Develop and assess business ideas based on the opportunity and industry analysis, problem-solution and product-market fit based on the value proposition.",
-          "id": "9b567fce-f7c2-44f5-a50c-4e1fa375b83b",
-          "bloomLevel": "Apply"
+          "code": "CO2",
+          "bloomLevel": "Apply",
+          "id": "9b567fce-f7c2-44f5-a50c-4e1fa375b83b"
         },
         {
           "code": "CO3",
+          "text": "Evaluate the financing, legal, intellectual property & regulatory compliance aspects of starting a business.",
           "bloomLevel": "Evaluate",
-          "id": "e03d5b41-fffd-482f-b27f-7d36f81240a9",
-          "text": "Evaluate the financing, legal, intellectual property & regulatory compliance aspects of starting a business."
+          "id": "e03d5b41-fffd-482f-b27f-7d36f81240a9"
         },
         {
-          "id": "afc83e01-d799-4420-8971-0f4488cb7af6",
-          "bloomLevel": "Apply",
+          "code": "CO4",
           "text": "Develop skills in \"pitching\" a business idea clearly and concisely to the stakeholders.",
-          "code": "CO4"
+          "id": "afc83e01-d799-4420-8971-0f4488cb7af6",
+          "bloomLevel": "Apply"
         },
         {
-          "code": "CO5",
-          "text": "Develop an ethical and sustainable business plan that adheres to EDII concepts.",
           "id": "5bcfc5d8-9e2a-4d66-a826-3b0271a1018e",
-          "bloomLevel": "Apply"
+          "code": "CO5",
+          "bloomLevel": "Apply",
+          "text": "Develop an ethical and sustainable business plan that adheres to EDII concepts."
         }
       ],
-      "name": "Entrepreneurship",
-      "createdBy": "lead_cheryl_thomas",
-      "updatedAt": "2026-09-28T22:43:33.204Z",
       "courseOutline": "• Entrepreneurship, entrepreneurs and managers, Innovators and entrepreneurs, Disruptive innovations\n• Business Model Canvas, Lean Canvas, and Competitive analysis, Business Idea Journal, Building team\n• Recognize opportunity, Value Proposition Canvas, Customer Segmentation\n• Customer discovery interview, HADI cycle, Product-Solution fit\n• Elevator pitch, Building a business plan\n• Mullin’s model framework, VRIO analysis, marketing channel, Website marketing, social media, and \nguerrilla marketing\n• Business Model Canvas, Cost Structure, Key Resources, Activities, and Partners\n• Revenue models, Financial projections, and Pricing strategy\n• Sustainability, Equity, Diversity, Inclusion, and Indigenization considerations in entrepreneurship\n• Bootstrapping, Crowdfunding, Angel investors, Venture Investors, Governmental incentives\n• Legal aspects of founding the company, Patents, Copyrights, Trademarks\n• Exit strategy, Final Pitch of the Business Idea.",
       "seriesIds": [
         "series_entrepreneurship"
       ],
-      "prefix": "BUSI 641",
-      "createdAt": "2026-09-28T21:15:18.589Z",
-      "description": "This course introduces students to the process of creating their own business venture from opportunity \nrecognition, idea generation and customer discovery, towards the launch of their innovative business. The \ncourse investigates the main challenges associated with the first steps of startup. Students assess the \nopportunities, build, and verify business hypothesis, define the right customer segments, market research, and \nplan strategic development of their brand-new venture. Various frameworks are introduced that can help them \nstart a new venture as they further explore the legal aspects and the fundraising process. Upon the completion \nof the course, students will have the capacity to reasonably assess the problem-solution and product-market fit \nand how to pitch their ideas to investors."
+      "updatedAt": "2026-09-28T22:43:33.204Z",
+      "name": "Entrepreneurship",
+      "description": "This course introduces students to the process of creating their own business venture from opportunity \nrecognition, idea generation and customer discovery, towards the launch of their innovative business. The \ncourse investigates the main challenges associated with the first steps of startup. Students assess the \nopportunities, build, and verify business hypothesis, define the right customer segments, market research, and \nplan strategic development of their brand-new venture. Various frameworks are introduced that can help them \nstart a new venture as they further explore the legal aspects and the fundraising process. Upon the completion \nof the course, students will have the capacity to reasonably assess the problem-solution and product-market fit \nand how to pitch their ideas to investors.",
+      "createdAt": "2026-09-28T21:15:18.589Z"
     }
   ],
-  "mappings": [
-    {
-      "id": "map-1",
-      "courseId": "course-busi-654",
-      "courseLoId": "clo-busi-654-1",
-      "targetType": "series",
-      "targetId": "series-ai-01",
-      "targetLoId": "slo-ai-1",
-      "matchLevel": "strong",
-      "mappedBy": "lead_mohsen_ghodrat",
-      "createdAt": "2026-02-01T12:00:00.000Z"
-    },
-    {
-      "id": "map-2",
-      "courseId": "course-busi-654",
-      "courseLoId": "clo-busi-654-2",
-      "targetType": "workshop",
-      "targetId": "ws-ai-601",
-      "targetLoId": "wlo-1",
-      "matchLevel": "strong",
-      "mappedBy": "lead_mohsen_ghodrat",
-      "createdAt": "2026-02-01T12:05:00.000Z"
-    },
-    {
-      "id": "map-3",
-      "courseId": "course-busi-654",
-      "courseLoId": "clo-busi-654-3",
-      "targetType": "workshop",
-      "targetId": "ws-ai-602",
-      "targetLoId": "wlo-4",
-      "matchLevel": "partial",
-      "mappedBy": "lead_mohsen_ghodrat",
-      "createdAt": "2026-02-01T12:10:00.000Z"
-    },
-    {
-      "id": "map-4",
-      "courseId": "course-busi-641",
-      "courseLoId": "clo-busi-641-1",
-      "targetType": "series",
-      "targetId": "series-entr-03",
-      "targetLoId": "slo-entr-1",
-      "matchLevel": "strong",
-      "mappedBy": "lead_cheryl_thomas",
-      "createdAt": "2026-02-02T12:00:00.000Z"
-    },
-    {
-      "id": "map-5",
-      "courseId": "course-busi-641",
-      "courseLoId": "clo-busi-641-2",
-      "targetType": "workshop",
-      "targetId": "ws-entr-620",
-      "targetLoId": "wlo-9",
-      "matchLevel": "strong",
-      "mappedBy": "lead_cheryl_thomas",
-      "createdAt": "2026-02-02T12:05:00.000Z"
-    },
-    {
-      "id": "map-6",
-      "courseId": "course-busi-641",
-      "courseLoId": "clo-busi-641-3",
-      "targetType": "series",
-      "targetId": "series-entr-03",
-      "targetLoId": "slo-entr-2",
-      "matchLevel": "strong",
-      "mappedBy": "lead_cheryl_thomas",
-      "createdAt": "2026-02-02T12:10:00.000Z"
-    }
-  ],
+  "mappings": [],
   "materials": [
     {
       "id": "mat-ai-01",
@@ -1356,6 +1289,5 @@
   ],
   "deletedSeriesIds": [],
   "deletedWorkshopIds": [],
-  "version": 3,
-  "lastSynced": "2026-10-15T01:33:19.841Z"
+  "version": 3
 }
