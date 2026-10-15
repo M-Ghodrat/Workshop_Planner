@@ -4,6 +4,7 @@ import {
   getDocs,
   getDoc,
   addDoc,
+  setDoc,
   updateDoc,
   deleteDoc,
   query,
@@ -139,18 +140,41 @@ export const workshopService = {
       onSuccess(cached);
     }
 
-    // Fetch from persistent server database
+    // 1. Live Firestore real-time listener (primary cloud database)
+    let unsubscribeFirestore: (() => void) | null = null;
+    try {
+      const collRef = collection(db, COLLECTION_NAME);
+      unsubscribeFirestore = onSnapshot(
+        collRef,
+        (snap) => {
+          if (!snap.empty) {
+            const deletedIds = getStoredDeletedWorkshopIds();
+            const liveList: Workshop[] = snap.docs
+              .map((d) => sanitizeWorkshop({ id: d.id, ...(d.data() as any) }))
+              .filter((w) => w.id && !deletedIds.includes(w.id));
+            if (liveList.length > 0) {
+              notifySubscribers(liveList);
+            }
+          }
+        },
+        (err) => {
+          console.debug('Firestore workshop subscription notice (falling back to local cache):', err.message);
+        }
+      );
+    } catch (e) {
+      console.debug('Could not attach Firestore workshop listener:', e);
+    }
+
+    // 2. Fetch from persistent server database if available
     fetch('/api/workshops')
       .then((res) => (res.ok ? res.json() : null))
       .then((list) => {
-        if (Array.isArray(list)) {
+        if (Array.isArray(list) && list.length > 0) {
           const sanitizedList = list.map(sanitizeWorkshop);
           notifySubscribers(sanitizedList);
         }
       })
-      .catch((e) => {
-        console.debug('Workshop API fetch notice:', e);
-      });
+      .catch(() => {});
 
     const onFocus = () => {
       fetch('/api/workshops')
@@ -168,6 +192,7 @@ export const workshopService = {
 
     return () => {
       subscribers.delete(onSuccess);
+      if (unsubscribeFirestore) unsubscribeFirestore();
       if (typeof window !== 'undefined') {
         window.removeEventListener('focus', onFocus);
       }
@@ -247,6 +272,14 @@ export const workshopService = {
     const cached = getCachedWorkshops();
     notifySubscribers([sanitized, ...cached]);
 
+    // 1. Direct Firestore cloud persistence
+    try {
+      await setDoc(doc(db, COLLECTION_NAME, newId), sanitized);
+    } catch (err) {
+      console.warn('Firestore workshop write notice:', err);
+    }
+
+    // 2. Local server sync if available
     try {
       const res = await fetch('/api/workshops', {
         method: 'POST',
@@ -282,6 +315,23 @@ export const workshopService = {
       notifySubscribers(updatedList);
     }
 
+    // 1. Direct Firestore cloud update
+    try {
+      await setDoc(
+        doc(db, COLLECTION_NAME, id),
+        {
+          ...updates,
+          updatedBy: user.id,
+          updatedByName: user.displayName,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Firestore workshop update notice:', err);
+    }
+
+    // 2. Local server sync if available
     try {
       await fetch(`/api/workshops/${encodeURIComponent(id)}`, {
         method: 'PUT',
@@ -307,6 +357,14 @@ export const workshopService = {
     const updatedList = cached.filter((w) => w.id !== id);
     notifySubscribers(updatedList);
 
+    // 1. Direct Firestore cloud deletion
+    try {
+      await deleteDoc(doc(db, COLLECTION_NAME, id));
+    } catch (err) {
+      console.warn('Firestore workshop delete notice:', err);
+    }
+
+    // 2. Local server sync if available
     try {
       await fetch(`/api/workshops/${encodeURIComponent(id)}`, { method: 'DELETE' });
     } catch (e) {

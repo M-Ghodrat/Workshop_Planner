@@ -11,15 +11,20 @@ export const firebaseConfig = {
   projectId: appletConfig.projectId || "ucw-workshop-planner",
   storageBucket: appletConfig.storageBucket || "ucw-workshop-planner.firebasestorage.app",
   messagingSenderId: appletConfig.messagingSenderId || "712007730290",
-  appId: appletConfig.appId || "1:712007730290:web:76713a5254f7656f636eeb",
+  appId: appletConfig.appId || "1:712007730290:web:fcb4577bb226b260636eeb",
   measurementId: appletConfig.measurementId || ""
 };
 
-export const FIRESTORE_DATABASE_ID = appletConfig.firestoreDatabaseId || "ai-studio-workshopplanner-d0c2e3a2-d296-40a7-bf60-068133983b2e";
+// Database ID - set to undefined so getFirestore(app) connects to the (default) database
+export const FIRESTORE_DATABASE_ID =
+  appletConfig.firestoreDatabaseId && appletConfig.firestoreDatabaseId !== '(default)'
+    ? appletConfig.firestoreDatabaseId
+    : undefined;
 
 // Initialize Firebase App
 export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
+// Calling getFirestore(app) connects directly to the standard (default) database
 export const db = FIRESTORE_DATABASE_ID ? getFirestore(app, FIRESTORE_DATABASE_ID) : getFirestore(app);
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();

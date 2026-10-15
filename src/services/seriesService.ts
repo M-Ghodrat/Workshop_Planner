@@ -90,17 +90,40 @@ export const seriesService = {
     const initial = getCachedSeries();
     onSuccess(initial);
 
-    // Fetch from persistent server database
+    // 1. Live Firestore real-time listener
+    let unsubscribeFirestore: (() => void) | null = null;
+    try {
+      const collRef = collection(db, COLLECTION_NAME);
+      unsubscribeFirestore = onSnapshot(
+        collRef,
+        (snap) => {
+          if (!snap.empty) {
+            const deletedIds = getStoredDeletedSeriesIds();
+            const liveList: WorkshopSeries[] = snap.docs
+              .map((d) => ({ id: d.id, ...(d.data() as any) }))
+              .filter((s) => s.id && !deletedIds.includes(s.id));
+            if (liveList.length > 0) {
+              notifySubscribers(liveList);
+            }
+          }
+        },
+        (err) => {
+          console.debug('Firestore series subscription notice (falling back to cache):', err.message);
+        }
+      );
+    } catch (e) {
+      console.debug('Could not attach Firestore series listener:', e);
+    }
+
+    // 2. Fetch from persistent server database if available
     fetch('/api/series')
       .then((res) => (res.ok ? res.json() : null))
       .then((list) => {
-        if (Array.isArray(list)) {
+        if (Array.isArray(list) && list.length > 0) {
           notifySubscribers(list);
         }
       })
-      .catch((e) => {
-        console.debug('Series API fetch notice:', e);
-      });
+      .catch(() => {});
 
     const onFocus = () => {
       fetch('/api/series')
@@ -116,6 +139,7 @@ export const seriesService = {
 
     return () => {
       subscribers.delete(onSuccess);
+      if (unsubscribeFirestore) unsubscribeFirestore();
       if (typeof window !== 'undefined') {
         window.removeEventListener('focus', onFocus);
       }
@@ -123,6 +147,20 @@ export const seriesService = {
   },
 
   getAllSeries: async (): Promise<WorkshopSeries[]> => {
+    try {
+      const snap = await getDocs(collection(db, COLLECTION_NAME));
+      if (!snap.empty) {
+        const deletedIds = getStoredDeletedSeriesIds();
+        const liveList: WorkshopSeries[] = snap.docs
+          .map((d) => ({ id: d.id, ...(d.data() as any) }))
+          .filter((s) => s.id && !deletedIds.includes(s.id));
+        if (liveList.length > 0) {
+          notifySubscribers(liveList);
+          return liveList;
+        }
+      }
+    } catch {}
+
     try {
       const res = await fetch('/api/series');
       if (res.ok) {
@@ -183,6 +221,14 @@ export const seriesService = {
     const cached = getCachedSeries();
     notifySubscribers([newSeries, ...cached]);
 
+    // 1. Direct Firestore cloud persistence
+    try {
+      await setDoc(doc(db, COLLECTION_NAME, newId), newSeries);
+    } catch (err) {
+      console.warn('Firestore series write notice:', err);
+    }
+
+    // 2. Local server sync if available
     try {
       const res = await fetch('/api/series', {
         method: 'POST',
@@ -226,6 +272,21 @@ export const seriesService = {
       notifySubscribers(updatedList);
     }
 
+    // 1. Direct Firestore cloud update
+    try {
+      await setDoc(
+        doc(db, COLLECTION_NAME, id),
+        {
+          ...updates,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Firestore series update notice:', err);
+    }
+
+    // 2. Local server sync if available
     try {
       await fetch(`/api/series/${encodeURIComponent(id)}`, {
         method: 'PUT',
@@ -250,7 +311,14 @@ export const seriesService = {
     const updatedList = cached.filter((s) => s.id !== id);
     notifySubscribers(updatedList);
 
-    // 3. Persist deletion in server database on disk
+    // 3. Direct Firestore cloud deletion
+    try {
+      await deleteDoc(doc(db, COLLECTION_NAME, id));
+    } catch (err) {
+      console.warn('Firestore series delete notice:', err);
+    }
+
+    // 4. Persist deletion in server database on disk if available
     try {
       await fetch(`/api/series/${encodeURIComponent(id)}`, { method: 'DELETE' });
     } catch (e) {
