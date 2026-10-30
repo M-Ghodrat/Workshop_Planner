@@ -92,6 +92,7 @@ export const WorkshopList: React.FC<WorkshopListProps> = ({
   const [selectedSeries, setSelectedSeries] = useState<string>('all');
   const [selectedDeveloper, setSelectedDeveloper] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [onlyMyWorkshops, setOnlyMyWorkshops] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<'updated' | 'title' | 'code'>('updated');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [layoutMode, setLayoutMode] = useState<'grid' | 'table'>('grid');
@@ -232,15 +233,19 @@ export const WorkshopList: React.FC<WorkshopListProps> = ({
           return false;
         }
 
+        // Only My Workshops filter
+        if (onlyMyWorkshops) {
+          const isMine = isUserAssignedToWorkshop(w, userProfile) || w.createdBy === userId;
+          if (!isMine) return false;
+        }
+
         return true;
       })
       .sort((a, b) => {
-        // For developers, always place their own assigned workshops on top of read-only series peer workshops
-        if (!isElevatedRole) {
-          const aMine = isUserAssignedToWorkshop(a, userProfile) ? 0 : 1;
-          const bMine = isUserAssignedToWorkshop(b, userProfile) ? 0 : 1;
-          if (aMine !== bMine) return aMine - bMine;
-        }
+        // ALWAYS start with workshops the person is assigned to (assigned/authored first), then read-only peer workshops
+        const aMine = isUserAssignedToWorkshop(a, userProfile) || a.createdBy === userId ? 0 : 1;
+        const bMine = isUserAssignedToWorkshop(b, userProfile) || b.createdBy === userId ? 0 : 1;
+        if (aMine !== bMine) return aMine - bMine;
 
         let comparison = 0;
         if (sortBy === 'title') {
@@ -257,7 +262,7 @@ export const WorkshopList: React.FC<WorkshopListProps> = ({
         }
         return sortOrder === 'desc' ? -comparison : comparison;
       });
-  }, [baseList, searchTerm, selectedSeries, selectedDeveloper, selectedStatus, sortBy, sortOrder, safeSeries, isElevatedRole, userProfile]);
+  }, [baseList, searchTerm, selectedSeries, selectedDeveloper, selectedStatus, onlyMyWorkshops, sortBy, sortOrder, safeSeries, userProfile, userId]);
 
   // Execute workshop deletion with optimistic UI update
   const handleDelete = async () => {
@@ -532,6 +537,19 @@ export const WorkshopList: React.FC<WorkshopListProps> = ({
               <option value="Approved">Approved</option>
             </select>
           </div>
+
+          {/* Only My Workshops Filter Button */}
+          <button
+            type="button"
+            onClick={() => setOnlyMyWorkshops((prev) => !prev)}
+            className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer whitespace-nowrap shadow-2xs ${
+              onlyMyWorkshops
+                ? 'bg-[#002B49] text-white border-[#002B49]'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+            }`}
+          >
+            {onlyMyWorkshops ? '✓ Only My Workshops' : 'Filter: Only My Workshops'}
+          </button>
 
           {/* Sort Controls */}
           <div className="flex items-center gap-1.5">

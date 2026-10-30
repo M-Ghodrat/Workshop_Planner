@@ -52,10 +52,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'my-workshops',
-      label: isAdmin ? 'All Workshops' : 'My Workshops',
+      label: 'Workshops',
       icon: BookOpen,
       visible: true,
-      description: isAdmin ? 'Manage curriculum catalog' : 'Assigned & authored workshops',
+      description: 'Manage curriculum catalog & assigned outlines',
     },
     {
       id: 'series',

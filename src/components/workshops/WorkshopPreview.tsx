@@ -209,14 +209,81 @@ ${(workshop.assignedDevelopers || []).map((d) => `- ${d.name} (${d.role})`).join
             <span>{copied ? 'Copied!' : 'Copy Summary'}</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-          >
-            <Printer className="w-4 h-4 text-blue-600" />
-            <span>Print</span>
-          </button>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                const dropdown = document.getElementById('preview-export-dropdown-menu');
+                if (dropdown) dropdown.classList.toggle('hidden');
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#002B49] hover:bg-[#003d66] text-white text-xs font-black uppercase tracking-wider transition-colors cursor-pointer shadow-md"
+            >
+              <FileText className="w-4 h-4 text-amber-400" />
+              <span>Download / Export ▼</span>
+            </button>
+            <div
+              id="preview-export-dropdown-menu"
+              className="hidden absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  const dropdown = document.getElementById('preview-export-dropdown-menu');
+                  if (dropdown) dropdown.classList.add('hidden');
+                  const text = `UNIVERSITY CANADA WEST (UCW)\nWORKSHOP SPECIFICATION: ${workshop.prefix} ${workshop.code} - ${workshop.title}\n\nDESCRIPTION:\n${workshop.description || ''}\n\nLEARNING OUTCOMES:\n${(workshop.learningOutcomes || []).map((lo) => `${lo.code}: ${lo.text} [Bloom: ${lo.bloomLevel}]`).join('\n')}\n\nTIMELINE:\n${(workshop.topics || []).map((t) => `${t.title} (${t.durationMinutes}m)\n${(t.subtopics || []).map((s) => `  - ${s.title} (${s.durationMinutes || 0}m)`).join('\n')}`).join('\n\n')}\n\nACTIVITIES:\n${(workshop.activities || []).map((a) => `${a.title} (${a.type}, ${a.estimatedMinutes || 20}m)\n${a.description || ''}`).join('\n\n')}\n\nTEACHING NOTES:\n${workshop.contentNotes || ''}`;
+                  const blob = new Blob([text], { type: 'application/msword;charset=utf-8' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${workshop.prefix}_${workshop.code}_Specification.doc`.replace(/\s+/g, '_');
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                  success('Doc Exported', 'Workshop specification downloaded as formatted document (.doc).');
+                }}
+                className="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-100 flex items-center gap-2 cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5 text-blue-600" />
+                <span>Save as Doc</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const dropdown = document.getElementById('preview-export-dropdown-menu');
+                  if (dropdown) dropdown.classList.add('hidden');
+                  const csvRows = [
+                    ['Field', 'Detail'],
+                    ['Workshop Code', `${workshop.prefix} ${workshop.code}`],
+                    ['Title', `"${(workshop.title || '').replace(/"/g, '""')}"`],
+                    ['Series', `"${(workshop.seriesName || '').replace(/"/g, '""')}"`],
+                    ['Total Duration', `${workshop.totalDurationMinutes || 120} mins`],
+                    ['Status', workshop.status],
+                    ['Description', `"${(workshop.description || '').replace(/"/g, '""')}"`],
+                    ['Learning Outcomes', `"${(workshop.learningOutcomes || []).map((lo) => `${lo.code}: ${lo.text} [${lo.bloomLevel}]`).join('; ').replace(/"/g, '""')}"`],
+                    ['Timeline Topics', `"${(workshop.topics || []).map((t) => `${t.title} (${t.durationMinutes}m)`).join('; ').replace(/"/g, '""')}"`],
+                    ['Activities', `"${(workshop.activities || []).map((a) => `${a.title} [${a.type}]`).join('; ').replace(/"/g, '""')}"`],
+                    ['Teaching Notes', `"${(workshop.contentNotes || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`],
+                  ];
+                  const csvContent = csvRows.map((e) => e.join(',')).join('\n');
+                  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `${workshop.prefix}_${workshop.code}_Spreadsheet.csv`.replace(/\s+/g, '_');
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                  success('Excel Exported', 'Workshop outline downloaded as Excel CSV spreadsheet.');
+                }}
+                className="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-100 flex items-center gap-2 cursor-pointer border-t border-slate-100"
+              >
+                <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Save as Excel</span>
+              </button>
+            </div>
+          </div>
 
           <button
             onClick={() => onEdit(workshop)}
