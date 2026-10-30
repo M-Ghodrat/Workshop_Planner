@@ -9,10 +9,11 @@ import {
   onAuthStateChanged,
   updateProfile,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../config/firebase';
 import { UserProfile, UserRole } from '../types';
 import { INITIAL_USERS } from '../data/initialData';
+import { formatUserId } from '../services/userService';
 
 interface AuthContextType {
   currentUser: FirebaseUser | null;
@@ -78,15 +79,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [loading, setLoading] = useState(true);
 
-  // Sync or create user profile in Firestore
+  // Sync or create user profile in Firestore using structured dev_<firstname>_<lastname> ID
   const fetchOrCreateProfile = async (user: FirebaseUser, fallbackRole?: UserRole): Promise<UserProfile> => {
     const sanitizeName = (name: string, role: UserRole, email?: string): string => {
       let clean = name || '';
       const lowerEmail = (email || '').toLowerCase();
-      if (clean.includes('Mohsen Ghodrat') || lowerEmail.includes('mohsenghodrat')) {
+      if (clean.includes('Mohsen Ghodrat') || lowerEmail.includes('mohsenghodrat') || lowerEmail.includes('mohsen.ghodrat')) {
         return 'Mohsen Ghodrat';
       }
-      if (role === 'administrator') {
+      if (role === 'administrator' && !clean) {
         return 'Administrator';
       }
       if (!clean) {
@@ -98,21 +99,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return clean;
     };
 
+    const emailLower = (user.email || '').toLowerCase();
+    const nameLower = (user.displayName || '').toLowerCase();
+
     const isMohsen =
-      (user.email || '').toLowerCase().includes('mohsenghodrat') ||
-      (user.displayName || '').toLowerCase().includes('mohsen ghodrat');
+      emailLower.includes('mohsenghodrat') ||
+      emailLower.includes('mohsen.ghodrat') ||
+      nameLower.includes('mohsen ghodrat');
 
     const defaultInitialRole: UserRole = isMohsen
       ? 'workshop_lead'
-      : ADMIN_EMAILS.includes(user.email?.toLowerCase() || '') || fallbackRole === 'administrator'
+      : ADMIN_EMAILS.includes(emailLower) || fallbackRole === 'administrator'
       ? 'administrator'
       : fallbackRole || 'developer';
 
-    const userDocRef = doc(db, 'users', user.uid);
+    const rawName = user.displayName || user.email?.split('@')[0] || 'UCW Faculty Member';
+    const cleanDisplayName = sanitizeName(rawName, defaultInitialRole, user.email || '');
+    const structuredUserId = isMohsen
+      ? 'dev_mohsen_ghodrat'
+      : formatUserId(cleanDisplayName, user.email || undefined);
+
+    const userDocRef = doc(db, 'users', structuredUserId);
     try {
       const snap = await getDoc(userDocRef);
       if (snap.exists()) {
-        const data = snap.data() as UserProfile;
+        const data = { ...(snap.data() as UserProfile), id: structuredUserId };
         const sanitized = sanitizeName(data.displayName || '', data.role, user.email || '');
         if (data.displayName !== sanitized) {
           data.displayName = sanitized;
@@ -124,11 +135,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(data));
         return data;
       } else {
-        const rawName = user.displayName || user.email?.split('@')[0] || 'UCW Faculty Member';
         const newProfile: UserProfile = {
-          id: user.uid,
+          id: structuredUserId,
           email: user.email || '',
-          displayName: sanitizeName(rawName, defaultInitialRole, user.email || ''),
+          displayName: cleanDisplayName,
           role: defaultInitialRole,
           department:
             defaultInitialRole === 'administrator'
@@ -140,7 +150,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           updatedAt: new Date().toISOString(),
         };
         try {
-          await setDoc(userDocRef, newProfile);
+          await setDoc(userDocRef, newProfile, { merge: true });
         } catch {}
         setUserProfile(newProfile);
         localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(newProfile));
@@ -148,9 +158,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (err) {
       const fallbackProfile: UserProfile = {
-        id: user.uid,
+        id: structuredUserId,
         email: user.email || '',
-        displayName: sanitizeName(user.displayName || 'UCW Faculty Member', defaultInitialRole, user.email || ''),
+        displayName: cleanDisplayName,
         role: defaultInitialRole,
         department:
           defaultInitialRole === 'administrator'
@@ -166,10 +176,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
-      if (user) {
+      // Do NOT overwrite active faculty session or create Firestore docs for anonymous Firebase sessions
+      if (user && !user.isAnonymous) {
         await fetchOrCreateProfile(user);
       } else {
-        // If not signed into Firebase auth, check if there was a saved session
         const saved = localStorage.getItem(DEMO_STORAGE_KEY);
         if (saved) {
           try {
@@ -199,9 +209,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // Seamless fallback: Log in directly as Dr. Mohsen Ghodrat (the lead faculty owner)
-      const targetUser = INITIAL_USERS.find((u) => u.id === 'lead_mohsen_ghodrat') || INITIAL_USERS[2];
+      const targetUser = INITIAL_USERS.find((u) => u.id.includes('mohsen_ghodrat')) || INITIAL_USERS[2];
       const mohsenProfile: UserProfile = {
         ...targetUser,
+        id: 'dev_mohsen_ghodrat',
         role: targetUser.role || 'workshop_lead',
       };
       setUserProfile(mohsenProfile);
@@ -213,7 +224,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithPresetAccount = async (profileId: string) => {
     setLoading(true);
-    const target = INITIAL_USERS.find((u) => u.id === profileId) || INITIAL_USERS[2]; // Dr. Mohsen Ghodrat by default
+    const target =
+      INITIAL_USERS.find(
+        (u) =>
+          u.id === profileId ||
+          (profileId.includes('mohsen') && u.id.includes('mohsen_ghodrat')) ||
+          (profileId.includes('admin') && u.role === 'administrator')
+      ) || INITIAL_USERS[2];
     setUserProfile(target);
     localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(target));
     try {
@@ -235,7 +252,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           u.email.toLowerCase() === normalizedEmail ||
           (normalizedEmail.includes('admin') && u.role === 'administrator') ||
           (normalizedEmail.includes('developer') && u.role === 'developer') ||
-          (normalizedEmail.includes('mohsen') && u.id === 'lead_mohsen_ghodrat')
+          (normalizedEmail.includes('mohsen') && u.id.includes('mohsen_ghodrat'))
       );
 
       if (matchedUser) {
@@ -291,10 +308,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ? 'administrator'
         : 'developer';
 
+      const displayName = isMohsen ? 'Mohsen Ghodrat' : (email.split('@')[0] || 'UCW Faculty Member');
+      const structuredId = isMohsen ? 'dev_mohsen_ghodrat' : formatUserId(displayName, normalizedEmail);
+
       const autoProfile: UserProfile = {
-        id: isMohsen ? 'lead_mohsen_ghodrat' : `usr_${normalizedEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        id: structuredId,
         email: normalizedEmail,
-        displayName: isMohsen ? 'Mohsen Ghodrat' : (email.split('@')[0] || 'UCW Faculty Member'),
+        displayName,
         role: assignedRole,
         department:
           assignedRole === 'administrator'
@@ -330,9 +350,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('Firebase Email signup unavailable, registering local faculty account:', authErr?.message || authErr);
       }
 
-      // Fallback local registration
+      // Fallback registration using structured dev_<firstname>_<lastname> ID
+      const structuredId = formatUserId(name, email);
       const customProfile: UserProfile = {
-        id: `usr_${email.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        id: structuredId,
         email: email.toLowerCase().trim(),
         displayName: name,
         role,
@@ -342,6 +363,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             : 'School of Business & Technology',
         createdAt: new Date().toISOString(),
       };
+      try {
+        await setDoc(doc(db, 'users', structuredId), customProfile, { merge: true });
+      } catch {}
       setUserProfile(customProfile);
       localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(customProfile));
       try {
@@ -383,22 +407,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const raw = localStorage.getItem(ROLE_OVERRIDES_KEY);
       const overrides = raw ? JSON.parse(raw) : {};
       overrides[userProfile.id] = newRole;
+      overrides['dev_mohsen_ghodrat'] = newRole;
+      overrides['lead_mohsen_ghodrat'] = newRole;
       if (userProfile.email) overrides[userProfile.email.toLowerCase()] = newRole;
       localStorage.setItem(ROLE_OVERRIDES_KEY, JSON.stringify(overrides));
     } catch {}
 
     try {
-      await updateDoc(doc(db, 'users', userProfile.id), {
-        role: newRole,
-        updatedAt: new Date().toISOString(),
-      });
+      await setDoc(
+        doc(db, 'users', userProfile.id),
+        {
+          id: userProfile.id,
+          role: newRole,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
     } catch (error) {
       console.warn('Could not update role in Firestore:', error);
     }
   };
 
   const refreshProfile = async () => {
-    if (currentUser) {
+    if (currentUser && !currentUser.isAnonymous) {
       await fetchOrCreateProfile(currentUser);
     }
   };

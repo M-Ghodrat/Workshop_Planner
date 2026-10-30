@@ -134,6 +134,17 @@ async function startServer() {
     res.json(db.series);
   });
 
+  app.post('/api/sync-series', (req: Request, res: Response) => {
+    const { series } = req.body;
+    if (Array.isArray(series) && series.length > 0) {
+      db.series = series.filter((s: any) => s && s.id && !db.deletedSeriesIds.includes(s.id));
+      saveDatabase();
+      res.json({ success: true, count: db.series.length });
+    } else {
+      res.status(400).json({ error: 'Invalid series array' });
+    }
+  });
+
   app.post('/api/series', (req: Request, res: Response) => {
     const newSeries = req.body;
     if (!newSeries.id) {
@@ -179,6 +190,17 @@ async function startServer() {
   // Workshops
   app.get('/api/workshops', (_req: Request, res: Response) => {
     res.json(db.workshops);
+  });
+
+  app.post('/api/sync-workshops', (req: Request, res: Response) => {
+    const { workshops } = req.body;
+    if (Array.isArray(workshops) && workshops.length > 0) {
+      db.workshops = workshops.filter((w: any) => w && w.id && !db.deletedWorkshopIds.includes(w.id));
+      saveDatabase();
+      res.json({ success: true, count: db.workshops.length });
+    } else {
+      res.status(400).json({ error: 'Invalid workshops array' });
+    }
   });
 
   app.post('/api/workshops', (req: Request, res: Response) => {
@@ -283,6 +305,17 @@ async function startServer() {
     res.json(db.mappings);
   });
 
+  app.post('/api/sync-mappings', (req: Request, res: Response) => {
+    const { mappings } = req.body;
+    if (Array.isArray(mappings)) {
+      db.mappings = mappings;
+      saveDatabase();
+      res.json({ success: true, count: mappings.length });
+    } else {
+      res.status(400).json({ error: 'Invalid mappings array' });
+    }
+  });
+
   app.post('/api/mappings', (req: Request, res: Response) => {
     const newMapping = req.body;
     if (!newMapping.id) {
@@ -356,6 +389,18 @@ async function startServer() {
 
   app.post('/api/users', (req: Request, res: Response) => {
     const user = req.body;
+    if (!user.id || /^(?:dev_\d+_[a-z0-9]+|usr_.+)$/i.test(user.id)) {
+      const cleanName = (user.displayName || '')
+        .trim()
+        .replace(/^(?:dr|prof|professor|mr|mrs|ms|miss)\.?\s+/gi, '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+      if (cleanName) {
+        user.id = cleanName.startsWith('dev_') ? cleanName : `dev_${cleanName}`;
+      }
+    }
     const idx = db.users.findIndex((u) => u.id === user.id);
     if (idx >= 0) {
       db.users[idx] = { ...db.users[idx], ...user };
@@ -364,6 +409,13 @@ async function startServer() {
     }
     saveDatabase();
     res.json(user);
+  });
+
+  app.delete('/api/users/:id', (req: Request, res: Response) => {
+    const { id } = req.params;
+    db.users = db.users.filter((u) => u.id !== id);
+    saveDatabase();
+    res.json({ success: true, deletedId: id });
   });
 
   // Database snapshot and reset

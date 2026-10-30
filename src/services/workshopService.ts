@@ -141,12 +141,14 @@ export const workshopService = {
     }
 
     // 1. Live Firestore real-time listener (primary cloud database)
+    let hasFirestoreWorkshops = false;
     let unsubscribeFirestore: (() => void) | null = null;
     try {
       const collRef = collection(db, COLLECTION_NAME);
       unsubscribeFirestore = onSnapshot(
         collRef,
         (snap) => {
+          hasFirestoreWorkshops = true;
           if (!snap.empty) {
             const deletedIds = getStoredDeletedWorkshopIds();
             const liveList: Workshop[] = snap.docs
@@ -154,6 +156,11 @@ export const workshopService = {
               .filter((w) => w.id && !deletedIds.includes(w.id));
             if (liveList.length > 0) {
               notifySubscribers(liveList);
+              fetch('/api/sync-workshops', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workshops: liveList }),
+              }).catch(() => {});
             }
           }
         },
@@ -165,37 +172,20 @@ export const workshopService = {
       console.debug('Could not attach Firestore workshop listener:', e);
     }
 
-    // 2. Fetch from persistent server database if available
+    // 2. Fetch from persistent server database if Firestore has not responded yet
     fetch('/api/workshops')
       .then((res) => (res.ok ? res.json() : null))
       .then((list) => {
-        if (Array.isArray(list) && list.length > 0) {
+        if (!hasFirestoreWorkshops && Array.isArray(list) && list.length > 0) {
           const sanitizedList = list.map(sanitizeWorkshop);
           notifySubscribers(sanitizedList);
         }
       })
       .catch(() => {});
 
-    const onFocus = () => {
-      fetch('/api/workshops')
-        .then((res) => (res.ok ? res.json() : null))
-        .then((list) => {
-          if (Array.isArray(list)) {
-            notifySubscribers(list.map(sanitizeWorkshop));
-          }
-        })
-        .catch(() => {});
-    };
-    if (typeof window !== 'undefined') {
-      window.addEventListener('focus', onFocus);
-    }
-
     return () => {
       subscribers.delete(onSuccess);
       if (unsubscribeFirestore) unsubscribeFirestore();
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('focus', onFocus);
-      }
     };
   },
 

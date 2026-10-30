@@ -191,13 +191,37 @@ export const UserManagement: React.FC<UserManagementProps> = ({
 
     setIsSubmitting(true);
     try {
-      await userService.createDeveloperProfile({
-        displayName: displayName.trim(),
-        email: email.trim().toLowerCase(),
-        department: department.trim(),
+      const cleanDisplayName = displayName.trim();
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanDept = department.trim();
+
+      const createdId = await userService.createDeveloperProfile({
+        displayName: cleanDisplayName,
+        email: cleanEmail,
+        department: cleanDept,
         role,
       });
-      success('Faculty Member Added', `${displayName} can now collaborate on workshops.`);
+
+      const newUser: UserProfile = {
+        id: createdId,
+        displayName: cleanDisplayName,
+        email: cleanEmail,
+        department: cleanDept,
+        role,
+        assignedWorkshopCount: 0,
+        createdAt: new Date().toISOString(),
+      };
+
+      const exists = localUsers.some((u) => u.id === createdId);
+      const updated = exists
+        ? localUsers.map((u) => (u.id === createdId ? newUser : u))
+        : [...localUsers, newUser];
+      setLocalUsers(updated);
+      if (onUsersUpdated) {
+        onUsersUpdated(updated);
+      }
+
+      success('Faculty Member Added', `${cleanDisplayName} (${createdId}) can now collaborate on workshops.`);
       setShowAddModal(false);
       setDisplayName('');
       setEmail('');

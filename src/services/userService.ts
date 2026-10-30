@@ -39,9 +39,49 @@ export const addStoredDeletedUserId = (idOrEmail: string) => {
   }
 };
 
+export const formatUserId = (displayName?: string, email?: string): string => {
+  const cleanName = (displayName || '')
+    .trim()
+    .replace(/^(?:dr|prof|professor|mr|mrs|ms|miss)\.?\s+/gi, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  if (cleanName) {
+    return cleanName.startsWith('dev_') ? cleanName : `dev_${cleanName}`;
+  }
+
+  const emailPrefix = (email || '')
+    .split('@')[0]
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  if (emailPrefix) {
+    return emailPrefix.startsWith('dev_') ? emailPrefix : `dev_${emailPrefix}`;
+  }
+
+  return 'dev_faculty_member';
+};
+
+const normalizePersonKey = (name?: string): string => {
+  return (name || '')
+    .trim()
+    .replace(/^(?:dr|prof|professor|mr|mrs|ms|miss)\.?\s+/gi, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ');
+};
+
+const normalizeEmailPrefix = (email?: string): string => {
+  return (email || '').split('@')[0].trim().toLowerCase();
+};
+
 export const DEFAULT_FACULTY: UserProfile[] = [
   {
-    id: 'admin_orkhon_erdenebaatar',
+    id: 'dev_orkhon_erdenebaatar',
     email: 'orkhon.erdenebaatar@ucanwest.ca',
     displayName: 'Orkhon Erdenebaatar',
     role: 'administrator',
@@ -50,7 +90,7 @@ export const DEFAULT_FACULTY: UserProfile[] = [
     createdAt: '2026-01-01T00:00:00.000Z',
   },
   {
-    id: 'lead_komil_mamajanov',
+    id: 'dev_komil_mamajanov',
     email: 'komil.mamajanov@ucanwest.ca',
     displayName: 'Komil Mamajanov',
     role: 'project_lead',
@@ -59,7 +99,7 @@ export const DEFAULT_FACULTY: UserProfile[] = [
     createdAt: '2026-01-01T00:00:00.000Z',
   },
   {
-    id: 'lead_mohsen_ghodrat',
+    id: 'dev_mohsen_ghodrat',
     email: 'mohsen.ghodrat@ucanwest.ca',
     displayName: 'Mohsen Ghodrat',
     role: 'workshop_lead',
@@ -68,7 +108,7 @@ export const DEFAULT_FACULTY: UserProfile[] = [
     createdAt: '2026-01-04T00:00:00.000Z',
   },
   {
-    id: 'lead_cheryl_thomas',
+    id: 'dev_cheryl_thomas',
     email: 'cheryl.thomas@ucanwest.ca',
     displayName: 'Cheryl Thomas',
     role: 'workshop_lead',
@@ -77,7 +117,7 @@ export const DEFAULT_FACULTY: UserProfile[] = [
     createdAt: '2026-01-02T00:00:00.000Z',
   },
   {
-    id: 'lead_amirhossein_zaji',
+    id: 'dev_amirhossein_zaji',
     email: 'amirhossein.zaji@ucanwest.ca',
     displayName: 'Amirhossein Zaji',
     role: 'workshop_lead',
@@ -86,22 +126,13 @@ export const DEFAULT_FACULTY: UserProfile[] = [
     createdAt: '2026-01-03T00:00:00.000Z',
   },
   {
-    id: 'affairs_amy_hua',
+    id: 'dev_amy_hua',
     email: 'amy.hua@ucanwest.ca',
     displayName: 'Amy Hua',
     role: 'academic_affairs',
     department: 'Academic Affairs',
     assignedWorkshopCount: 0,
     createdAt: '2026-01-05T00:00:00.000Z',
-  },
-  {
-    id: 'dev_faculty_member',
-    email: 'developer@ucanwest.ca',
-    displayName: 'Developer',
-    role: 'developer',
-    department: 'Curriculum Development',
-    assignedWorkshopCount: 0,
-    createdAt: '2026-01-06T00:00:00.000Z',
   },
 ];
 
@@ -148,8 +179,7 @@ const sanitizeUser = (user: UserProfile): UserProfile => {
   const nameLower = displayName.toLowerCase();
   const idLower = (user.id || '').toLowerCase();
 
-  // Role detection:
-  let defaultRole: UserRole = 'developer';
+  let defaultRole: UserRole = user.role || 'developer';
 
   if (
     emailLower.includes('orkhon.erdenebaatar') ||
@@ -189,14 +219,10 @@ const sanitizeUser = (user: UserProfile): UserProfile => {
     idLower.includes('amy')
   ) {
     defaultRole = 'academic_affairs';
-  } else if (user.role) {
-    defaultRole = user.role;
   }
 
   const overrides = getStoredRoleOverrides();
-  // Only Mohsen Ghodrat is permitted to have role overrides / toggle between roles
-  const canHaveOverride = isMohsenGhodratUser(user);
-  let role = canHaveOverride ? (overrides[user.id] || overrides[user.email || '']) : null;
+  let role = overrides[user.id] || overrides[user.email || ''] || null;
   if (!role) {
     role = defaultRole;
   }
@@ -208,9 +234,52 @@ const sanitizeUser = (user: UserProfile): UserProfile => {
   };
 };
 
+const isLegacyRandomUserId = (id: string): boolean => {
+  return /^(?:dev_\d+_[a-z0-9]+|usr_.+)$/i.test(id);
+};
+
+const normalizeAndMigrateFirestoreUsers = (rawUsers: UserProfile[]): UserProfile[] => {
+  const seenIds = new Set<string>();
+  const normalizedList: UserProfile[] = [];
+
+  for (const u of rawUsers) {
+    if (!u) continue;
+    // Skip anonymous placeholder records if any were accidentally created
+    if (u.displayName === 'UCW Faculty Member' && !u.email) {
+      deleteDoc(doc(db, COLLECTION_NAME, u.id)).catch(() => {});
+      continue;
+    }
+
+    let targetId = u.id;
+    if (isLegacyRandomUserId(u.id)) {
+      const structuredId = formatUserId(u.displayName, u.email);
+      if (structuredId && structuredId !== u.id) {
+        targetId = structuredId;
+        const migratedProfile: UserProfile = {
+          ...u,
+          id: targetId,
+          updatedAt: new Date().toISOString(),
+        };
+        // Migrate in Firestore: create structured doc and remove old random-ID doc
+        setDoc(doc(db, COLLECTION_NAME, targetId), migratedProfile, { merge: true })
+          .then(() => deleteDoc(doc(db, COLLECTION_NAME, u.id)))
+          .catch((err) => console.warn('User ID migration notice:', err));
+      }
+    }
+
+    if (!seenIds.has(targetId)) {
+      seenIds.add(targetId);
+      normalizedList.push({ ...u, id: targetId });
+    }
+  }
+
+  return normalizedList;
+};
+
 const mergeWithDefaultFaculty = (firestoreUsers: UserProfile[]): UserProfile[] => {
   const deletedIds = getStoredDeletedUserIds();
-  const result: UserProfile[] = [...firestoreUsers];
+  const normalizedFirestore = normalizeAndMigrateFirestoreUsers(firestoreUsers);
+  const result: UserProfile[] = [...normalizedFirestore];
 
   DEFAULT_FACULTY.forEach((defaultUser) => {
     const isDeleted =
@@ -218,12 +287,15 @@ const mergeWithDefaultFaculty = (firestoreUsers: UserProfile[]): UserProfile[] =
       (defaultUser.email && deletedIds.includes(defaultUser.email.toLowerCase()));
     if (isDeleted) return;
 
-    const idx = result.findIndex(
-      (u) =>
-        u.id === defaultUser.id ||
-        (u.email && defaultUser.email && u.email.toLowerCase() === defaultUser.email.toLowerCase()) ||
-        (u.displayName && defaultUser.displayName && u.displayName.toLowerCase() === defaultUser.displayName.toLowerCase())
-    );
+    const defaultPersonKey = normalizePersonKey(defaultUser.displayName);
+    const defaultEmailPre = normalizeEmailPrefix(defaultUser.email);
+
+    const idx = result.findIndex((u) => {
+      if (u.id === defaultUser.id) return true;
+      if (defaultPersonKey && normalizePersonKey(u.displayName) === defaultPersonKey) return true;
+      if (defaultEmailPre && normalizeEmailPrefix(u.email) === defaultEmailPre) return true;
+      return false;
+    });
 
     if (idx >= 0) {
       result[idx] = {
@@ -236,13 +308,25 @@ const mergeWithDefaultFaculty = (firestoreUsers: UserProfile[]): UserProfile[] =
     }
   });
 
-  return result
-    .filter(
-      (u) =>
-        !deletedIds.includes(u.id.toLowerCase()) &&
-        (!u.email || !deletedIds.includes(u.email.toLowerCase()))
-    )
-    .map(sanitizeUser);
+  // Deduplicate by person name / ID so there are never duplicate cards for the same person
+  const deduped: UserProfile[] = [];
+  const seenKeys = new Set<string>();
+  for (const u of result) {
+    if (
+      deletedIds.includes(u.id.toLowerCase()) ||
+      (u.email && deletedIds.includes(u.email.toLowerCase()))
+    ) {
+      continue;
+    }
+    const sanitized = sanitizeUser(u);
+    const key = normalizePersonKey(sanitized.displayName) || sanitized.id.toLowerCase();
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      deduped.push(sanitized);
+    }
+  }
+
+  return deduped;
 };
 
 export const userService = {
@@ -298,12 +382,12 @@ export const userService = {
     setStoredRoleOverride(userId, newRole);
 
     // 2. Persist to Firestore
-    const path = `${COLLECTION_NAME}/${userId}`;
     try {
       const docRef = doc(db, COLLECTION_NAME, userId);
       await setDoc(
         docRef,
         {
+          id: userId,
           role: newRole,
           updatedAt: new Date().toISOString(),
         },
@@ -312,26 +396,48 @@ export const userService = {
     } catch (error) {
       console.warn('updateUserRole Firestore sync warning:', error);
     }
+
+    // 3. Sync with local server cache
+    try {
+      await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: userId, role: newRole, updatedAt: new Date().toISOString() }),
+      });
+    } catch {}
   },
 
   createDeveloperProfile: async (
     profileData: Omit<UserProfile, 'id' | 'createdAt' | 'updatedAt'>
   ): Promise<string> => {
     const path = COLLECTION_NAME;
-    const autoId = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const structuredId = formatUserId(profileData.displayName, profileData.email);
+    const now = new Date().toISOString();
+    const newProfile: UserProfile = {
+      id: structuredId,
+      ...profileData,
+      assignedWorkshopCount: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    setStoredRoleOverride(structuredId, profileData.role);
+
     try {
-      const newProfile: UserProfile = {
-        id: autoId,
-        ...profileData,
-        assignedWorkshopCount: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      await setDoc(doc(db, COLLECTION_NAME, autoId), newProfile);
-      return autoId;
+      await setDoc(doc(db, COLLECTION_NAME, structuredId), newProfile, { merge: true });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, path);
     }
+
+    try {
+      await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProfile),
+      });
+    } catch {}
+
+    return structuredId;
   },
 
   deleteUser: async (userId: string, email?: string): Promise<void> => {
@@ -343,5 +449,9 @@ export const userService = {
     } catch (error) {
       console.warn('deleteUser Firestore warning:', error);
     }
+    try {
+      await fetch(`/api/users/${encodeURIComponent(userId)}`, { method: 'DELETE' });
+    } catch {}
   },
 };
+

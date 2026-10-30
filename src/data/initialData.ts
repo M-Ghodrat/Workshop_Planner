@@ -2,7 +2,7 @@ import { Workshop, WorkshopSeries, Course, OutcomeMapping, Material, UserProfile
 
 export const INITIAL_USERS: UserProfile[] = [
   {
-    id: 'admin_orkhon_erdenebaatar',
+    id: 'dev_orkhon_erdenebaatar',
     email: 'orkhon.erdenebaatar@ucanwest.ca',
     displayName: 'Orkhon Erdenebaatar',
     role: 'administrator',
@@ -11,7 +11,7 @@ export const INITIAL_USERS: UserProfile[] = [
     createdAt: '2026-01-10T08:00:00.000Z',
   },
   {
-    id: 'lead_komil_mamajanov',
+    id: 'dev_komil_mamajanov',
     email: 'komil.mamajanov@ucanwest.ca',
     displayName: 'Komil Mamajanov',
     role: 'project_lead',
@@ -20,7 +20,7 @@ export const INITIAL_USERS: UserProfile[] = [
     createdAt: '2026-01-10T08:30:00.000Z',
   },
   {
-    id: 'lead_mohsen_ghodrat',
+    id: 'dev_mohsen_ghodrat',
     email: 'mohsen.ghodrat@ucanwest.ca',
     displayName: 'Mohsen Ghodrat',
     role: 'workshop_lead',
@@ -29,7 +29,7 @@ export const INITIAL_USERS: UserProfile[] = [
     createdAt: '2026-01-12T09:00:00.000Z',
   },
   {
-    id: 'lead_cheryl_thomas',
+    id: 'dev_cheryl_thomas',
     email: 'cheryl.thomas@ucanwest.ca',
     displayName: 'Cheryl Thomas',
     role: 'workshop_lead',
@@ -38,7 +38,7 @@ export const INITIAL_USERS: UserProfile[] = [
     createdAt: '2026-01-12T09:15:00.000Z',
   },
   {
-    id: 'lead_amirhossein_zaji',
+    id: 'dev_amirhossein_zaji',
     email: 'amirhossein.zaji@ucanwest.ca',
     displayName: 'Amirhossein Zaji',
     role: 'workshop_lead',
@@ -47,22 +47,13 @@ export const INITIAL_USERS: UserProfile[] = [
     createdAt: '2026-01-12T09:30:00.000Z',
   },
   {
-    id: 'affairs_amy_hua',
+    id: 'dev_amy_hua',
     email: 'amy.hua@ucanwest.ca',
     displayName: 'Amy Hua',
     role: 'academic_affairs',
     department: 'Academic Affairs',
     assignedWorkshopCount: 0,
     createdAt: '2026-01-15T10:00:00.000Z',
-  },
-  {
-    id: 'dev_faculty_member',
-    email: 'developer@ucanwest.ca',
-    displayName: 'Developer',
-    role: 'developer',
-    department: 'School of Business & Technology',
-    assignedWorkshopCount: 2,
-    createdAt: '2026-01-15T10:30:00.000Z',
   },
 ];
 

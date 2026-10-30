@@ -90,6 +90,7 @@ export const courseService = {
     onSuccess(getCachedCourses());
 
     // 1. Direct Firestore real-time listener (attaches immediately to provisioned database)
+    let hasFirestoreCourses = false;
     let unsubscribeFirestore: (() => void) | null = null;
     const attachFirestoreListener = () => {
       if (unsubscribeFirestore) {
@@ -103,6 +104,7 @@ export const courseService = {
         unsubscribeFirestore = onSnapshot(
           collRef,
           (snap) => {
+            hasFirestoreCourses = true;
             if (!snap.empty) {
               const liveList: Course[] = snap.docs.map((d) => ({
                 id: d.id,
@@ -136,11 +138,11 @@ export const courseService = {
       }
     });
 
-    // 2. Fetch from persistent server database
+    // 2. Fetch from persistent server database only if Firestore has not responded yet
     fetch('/api/courses')
       .then((res) => (res.ok ? res.json() : null))
       .then((list) => {
-        if (Array.isArray(list) && list.length > 0) {
+        if (!hasFirestoreCourses && Array.isArray(list) && list.length > 0) {
           notifyCourseSubscribers(list);
         }
       })
@@ -148,25 +150,10 @@ export const courseService = {
         console.debug('Courses API fetch notice:', e);
       });
 
-    const onFocus = () => {
-      fetch('/api/courses')
-        .then((res) => (res.ok ? res.json() : null))
-        .then((list) => {
-          if (Array.isArray(list) && list.length > 0) notifyCourseSubscribers(list);
-        })
-        .catch(() => {});
-    };
-    if (typeof window !== 'undefined') {
-      window.addEventListener('focus', onFocus);
-    }
-
     return () => {
       courseSubscribers.delete(onSuccess);
       if (unsubscribeFirestore) unsubscribeFirestore();
       if (unsubscribeAuth) unsubscribeAuth();
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('focus', onFocus);
-      }
     };
   },
 
@@ -285,12 +272,17 @@ export const courseService = {
       notifyCourseSubscribers(updatedList);
     }
 
-    // Persist to Firestore
+    // Persist to Firestore using setDoc with merge: true so it succeeds even if document was not yet in Firestore
     try {
-      await updateDoc(doc(db, COURSES_COLLECTION, id), {
-        ...updates,
-        updatedAt: new Date().toISOString(),
-      });
+      await setDoc(
+        doc(db, COURSES_COLLECTION, id),
+        {
+          id,
+          ...updates,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
     } catch (error) {
       console.debug('Firestore course update notice:', error);
     }
@@ -344,17 +336,24 @@ export const courseService = {
     mappingSubscribers.add(onSuccess);
     onSuccess(getCachedMappings());
 
+    let hasFirestoreMappings = false;
     let unsubscribeFirestore: (() => void) | null = null;
     try {
       const collRef = collection(db, MAPPINGS_COLLECTION);
       unsubscribeFirestore = onSnapshot(
         collRef,
         (snap) => {
+          hasFirestoreMappings = true;
           const liveMappings: OutcomeMapping[] = snap.docs.map((d) => ({
             id: d.id,
             ...(d.data() as any),
           }));
           notifyMappingSubscribers(liveMappings);
+          fetch('/api/sync-mappings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mappings: liveMappings }),
+          }).catch(() => {});
         },
         (err) => {
           console.debug('Firestore mappings subscription notice:', err.message);
@@ -367,7 +366,7 @@ export const courseService = {
     fetch('/api/mappings')
       .then((res) => (res.ok ? res.json() : null))
       .then((list) => {
-        if (Array.isArray(list)) {
+        if (!hasFirestoreMappings && Array.isArray(list)) {
           notifyMappingSubscribers(list);
         }
       })
@@ -375,28 +374,23 @@ export const courseService = {
         console.debug('Mappings API fetch notice:', e);
       });
 
-    const onFocus = () => {
-      fetch('/api/mappings')
-        .then((res) => (res.ok ? res.json() : null))
-        .then((list) => {
-          if (Array.isArray(list)) notifyMappingSubscribers(list);
-        })
-        .catch(() => {});
-    };
-    if (typeof window !== 'undefined') {
-      window.addEventListener('focus', onFocus);
-    }
-
     return () => {
       mappingSubscribers.delete(onSuccess);
       if (unsubscribeFirestore) unsubscribeFirestore();
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('focus', onFocus);
-      }
     };
   },
 
   getAllMappings: async (): Promise<OutcomeMapping[]> => {
+    try {
+      const snap = await getDocs(collection(db, MAPPINGS_COLLECTION));
+      const liveMappings: OutcomeMapping[] = snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as any),
+      }));
+      notifyMappingSubscribers(liveMappings);
+      return liveMappings;
+    } catch {}
+
     try {
       const res = await fetch('/api/mappings');
       if (res.ok) {
@@ -498,21 +492,18 @@ export const courseService = {
       const updatedList = mappings.map((m) => (m.id === existing.id ? updated : m));
       notifyMappingSubscribers(updatedList);
 
-      // Direct Firestore update
+      // Direct Firestore update with setDoc merge so it always succeeds
       try {
-        await updateDoc(doc(db, MAPPINGS_COLLECTION, existing.id), {
-          matchLevel: mappingData.matchLevel,
-          mappedBy: user.id,
-        });
+        await setDoc(doc(db, MAPPINGS_COLLECTION, existing.id), updated, { merge: true });
       } catch (e) {
-        console.debug('Firestore direct updateDoc notice:', e);
+        console.debug('Firestore direct setDoc mapping notice:', e);
       }
 
       try {
         await fetch(`/api/mappings/${encodeURIComponent(existing.id)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ matchLevel: mappingData.matchLevel, mappedBy: user.id }),
+          body: JSON.stringify(updated),
         });
       } catch {
         // Local fallback handled silently
