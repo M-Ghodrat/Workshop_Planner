@@ -13,16 +13,25 @@ import { SeriesList } from './components/series/SeriesList';
 import { MaterialsRepository } from './components/materials/MaterialsRepository';
 import { MaterialPreviewModal } from './components/materials/MaterialPreviewModal';
 import { UserManagement } from './components/admin/UserManagement';
+import { BackupManagement } from './components/admin/BackupManagement';
 import { OutcomeMappingView } from './components/mapping/OutcomeMapping';
 
 import { workshopService } from './services/workshopService';
 import { seriesService } from './services/seriesService';
 import { materialService } from './services/materialService';
 import { userService } from './services/userService';
-import { seedService } from './services/seedService';
 import { courseService } from './services/courseService';
+import { backupService } from './services/backupService';
 
-import { Workshop, WorkshopSeries, Material, UserProfile, Course, OutcomeMapping } from './types';
+import {
+  Workshop,
+  WorkshopSeries,
+  Material,
+  UserProfile,
+  Course,
+  OutcomeMapping,
+  SystemBackup,
+} from './types';
 import { canUserViewFullWorkshopContent } from './utils/workshopPermissions';
 
 type ActiveView =
@@ -33,6 +42,7 @@ type ActiveView =
   | 'series'
   | 'materials'
   | 'admin-users'
+  | 'backups'
   | 'mapping';
 
 type PendingAction =
@@ -49,6 +59,7 @@ const MainApp: React.FC = () => {
   const { info } = useToast();
 
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
+  const [previousViewBeforePreview, setPreviousViewBeforePreview] = useState<ActiveView>('workshops');
   const [workshopViewMode, setWorkshopViewMode] = useState<'my' | 'all'>('all');
   const [selectedWorkshop, setSelectedWorkshop] = useState<Workshop | null>(null);
   const [quickOverviewWorkshop, setQuickOverviewWorkshop] = useState<Workshop | null>(null);
@@ -77,6 +88,7 @@ const MainApp: React.FC = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [mappings, setMappings] = useState<OutcomeMapping[]>([]);
+  const [backups, setBackups] = useState<SystemBackup[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
 
   // Stable dirty change handler to prevent re-render cascading
@@ -141,6 +153,11 @@ const MainApp: React.FC = () => {
       if (isMounted) setMappings(Array.isArray(mList) ? mList : []);
     });
 
+    // 7. Subscribe to system backups
+    const unsubscribeBackups = backupService.subscribeBackups((bList) => {
+      if (isMounted) setBackups(Array.isArray(bList) ? bList : []);
+    });
+
     return () => {
       isMounted = false;
       if (typeof unsubscribeWorkshops === 'function') unsubscribeWorkshops();
@@ -149,6 +166,7 @@ const MainApp: React.FC = () => {
       if (typeof unsubscribeUsers === 'function') unsubscribeUsers();
       if (typeof unsubscribeCourses === 'function') unsubscribeCourses();
       if (typeof unsubscribeMappings === 'function') unsubscribeMappings();
+      if (typeof unsubscribeBackups === 'function') unsubscribeBackups();
     };
   }, [isAuthenticated, userProfile, currentUser]);
 
@@ -183,6 +201,8 @@ const MainApp: React.FC = () => {
       setActiveView('workshops');
     } else if (view === 'users' || view === 'admin-users') {
       setActiveView('admin-users');
+    } else if (view === 'backups') {
+      setActiveView('backups');
     } else if (view === 'series') {
       setActiveView('series');
     } else if (view === 'materials') {
@@ -207,7 +227,7 @@ const MainApp: React.FC = () => {
   };
 
   const handleOpenEditWorkshop = (workshop: Workshop) => {
-    if (!canUserViewFullWorkshopContent(workshop, userProfile, series)) {
+    if (!canUserViewFullWorkshopContent(workshop, userProfile, series, workshops)) {
       setQuickOverviewWorkshop(workshop);
       return;
     }
@@ -222,13 +242,16 @@ const MainApp: React.FC = () => {
   };
 
   const handleOpenPreviewWorkshop = (workshop: Workshop) => {
-    if (!canUserViewFullWorkshopContent(workshop, userProfile, series)) {
+    if (!canUserViewFullWorkshopContent(workshop, userProfile, series, workshops)) {
       setQuickOverviewWorkshop(workshop);
       return;
     }
     if (activeView === 'workshop-editor' && isWorkshopDirty) {
       setPendingAction({ type: 'preview', workshop });
       return;
+    }
+    if (activeView !== 'workshop-preview') {
+      setPreviousViewBeforePreview(activeView);
     }
     setSelectedWorkshop(workshop);
     setActiveView('workshop-preview');
@@ -439,6 +462,7 @@ const MainApp: React.FC = () => {
           allUsers={users}
           onBack={handleBackFromEditor}
           onPreview={(w) => {
+            setPreviousViewBeforePreview('workshop-editor');
             setSelectedWorkshop(w);
             setActiveView('workshop-preview');
           }}
@@ -456,11 +480,13 @@ const MainApp: React.FC = () => {
       {activeView === 'workshop-preview' && selectedWorkshop && (
         <WorkshopPreview
           workshop={selectedWorkshop}
-          onBack={() => setActiveView('workshop-editor')}
+          materials={materials}
+          onBack={() => setActiveView(previousViewBeforePreview || 'workshops')}
           onEdit={(w) => {
             setSelectedWorkshop(w);
             setActiveView('workshop-editor');
           }}
+          onOpenMaterialPreview={(mat) => setPreviewMaterial(mat)}
         />
       )}
 
@@ -495,7 +521,28 @@ const MainApp: React.FC = () => {
         />
       )}
 
-      {/* 8. Learning Outcome Mapping View */}
+      {/* 8. System Backups & Checkpoints View (Project Lead) */}
+      {activeView === 'backups' && (
+        <BackupManagement
+          backups={backups}
+          workshops={workshops}
+          series={series}
+          materials={materials}
+          users={users}
+          courses={courses}
+          mappings={mappings}
+          onStateRestored={(restored) => {
+            setWorkshops(restored.workshops);
+            setSeries(restored.series);
+            setMaterials(restored.materials);
+            setUsers(restored.users);
+            setCourses(restored.courses);
+            setMappings(restored.mappings);
+          }}
+        />
+      )}
+
+      {/* 9. Learning Outcome Mapping View */}
       {activeView === 'mapping' && (
         <OutcomeMappingView
           courses={courses}

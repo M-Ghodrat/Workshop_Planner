@@ -83,6 +83,14 @@ export interface WorkshopActivity {
   description: string;
   estimatedMinutes?: number;
   instructions?: string;
+  attachments?: Material[];
+}
+
+export interface TeachingNoteItem {
+  id: string;
+  title: string;
+  templateType: 'lecture_teaching_note' | 'teaching_plan';
+  content: string;
 }
 
 export interface WorkshopResource {
@@ -139,6 +147,7 @@ export interface Workshop {
   requiredResources: WorkshopResource[];
   optionalResources: WorkshopResource[];
   dimensionsOfKnowledge: DimensionsOfKnowledge;
+  teachingNotes?: TeachingNoteItem[];
   contentNotes?: string;
   instructorNotes?: string;
   equipmentRequirements?: string;
@@ -238,6 +247,33 @@ export interface Material {
   uploadedByName?: string;
   createdAt?: string | any;
   updatedAt?: string | any;
+}
+
+export interface BackupSnapshot {
+  workshops: Workshop[];
+  series: WorkshopSeries[];
+  materials: Material[];
+  users: UserProfile[];
+  courses: Course[];
+  mappings: OutcomeMapping[];
+}
+
+export interface SystemBackup {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  createdBy: string;
+  createdByName: string;
+  counts: {
+    workshops: number;
+    series: number;
+    materials: number;
+    users: number;
+    courses: number;
+    mappings: number;
+  };
+  snapshot?: BackupSnapshot;
 }
 
 export enum OperationType {

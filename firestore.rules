@@ -19,6 +19,12 @@ service cloud.firestore {
     match /outcome_mappings/{mappingId} {
       allow read, write: if true;
     }
+    match /backups/{backupId} {
+      allow read, write: if true;
+      match /{subcollection}/{docId} {
+        allow read, write: if true;
+      }
+    }
     match /{document=**} {
       allow read, write: if true;
     }

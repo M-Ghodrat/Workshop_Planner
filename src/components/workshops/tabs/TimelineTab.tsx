@@ -55,17 +55,18 @@ export const TimelineTab: React.FC<TimelineTabProps> = ({
     const newTopicId = `top_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
     // Estimate remaining minutes to reach 120 if possible, default to 30
     const remaining = Math.max(10, Math.min(60, targetMinutes - totalMinutes));
+    const initialDuration = remaining > 0 ? remaining : 30;
     const newTopic: Topic = {
       id: newTopicId,
       order: topics.length + 1,
       title: `Topic ${topics.length + 1}: `,
       description: '',
-      durationMinutes: remaining > 0 ? remaining : 30,
+      durationMinutes: initialDuration,
       subtopics: [
         {
           id: `sub_${Date.now()}_1`,
           title: 'Subtopic overview & conceptual foundation',
-          durationMinutes: Math.floor((remaining > 0 ? remaining : 30) / 2),
+          durationMinutes: initialDuration,
         },
       ],
     };
@@ -116,7 +117,7 @@ export const TimelineTab: React.FC<TimelineTabProps> = ({
     }));
   };
 
-  // Subtopic handlers
+  // Subtopic handlers — automatically keep parent topic duration equal to the sum of its subtopics
   const handleAddSubtopic = (topicIndex: number) => {
     const currentTopic = topics[topicIndex];
     const subtopics = currentTopic.subtopics || [];
@@ -125,8 +126,14 @@ export const TimelineTab: React.FC<TimelineTabProps> = ({
       title: '',
       durationMinutes: 10,
     };
+    const nextSubtopics = [...subtopics, newSubtopic];
+    const subtopicsSum = nextSubtopics.reduce(
+      (acc, s) => acc + (Number(s.durationMinutes) || 0),
+      0
+    );
     handleUpdateTopic(topicIndex, {
-      subtopics: [...subtopics, newSubtopic],
+      subtopics: nextSubtopics,
+      durationMinutes: subtopicsSum > 0 ? subtopicsSum : currentTopic.durationMinutes,
     });
   };
 
@@ -138,13 +145,29 @@ export const TimelineTab: React.FC<TimelineTabProps> = ({
     const currentTopic = topics[topicIndex];
     const subtopics = [...(currentTopic.subtopics || [])];
     subtopics[subIndex] = { ...subtopics[subIndex], ...updates };
-    handleUpdateTopic(topicIndex, { subtopics });
+    const subtopicsSum = subtopics.reduce(
+      (acc, s) => acc + (Number(s.durationMinutes) || 0),
+      0
+    );
+    handleUpdateTopic(topicIndex, {
+      subtopics,
+      ...(updates.durationMinutes !== undefined
+        ? { durationMinutes: subtopicsSum }
+        : {}),
+    });
   };
 
   const handleDeleteSubtopic = (topicIndex: number, subIndex: number) => {
     const currentTopic = topics[topicIndex];
     const subtopics = (currentTopic.subtopics || []).filter((_, i) => i !== subIndex);
-    handleUpdateTopic(topicIndex, { subtopics });
+    const subtopicsSum = subtopics.reduce(
+      (acc, s) => acc + (Number(s.durationMinutes) || 0),
+      0
+    );
+    handleUpdateTopic(topicIndex, {
+      subtopics,
+      ...(subtopics.length > 0 ? { durationMinutes: subtopicsSum } : {}),
+    });
   };
 
   // Quick 120-minute balanced presets

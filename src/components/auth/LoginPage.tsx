@@ -27,14 +27,18 @@ export const LoginPage: React.FC = () => {
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState<UserRole>('developer');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleGoogleLogin = async () => {
+    setFormError(null);
     setIsSubmitting(true);
     try {
       await signInWithGoogle();
       success('Welcome to Workshop Planner', 'Signed in successfully.');
     } catch (err: any) {
-      error('Sign in notice', err?.message || 'Could not complete sign in.');
+      const msg = err?.message || 'Could not complete sign in.';
+      setFormError(msg);
+      error('Sign in notice', msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -42,8 +46,11 @@ export const LoginPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     if (!email || !password) {
-      error('Validation Error', 'Please enter both email and password.');
+      const msg = 'Please enter both email and password.';
+      setFormError(msg);
+      error('Validation Error', msg);
       return;
     }
 
@@ -54,7 +61,9 @@ export const LoginPage: React.FC = () => {
         success('Welcome back', 'Signed in successfully.');
       } else {
         if (!displayName) {
-          error('Validation Error', 'Please enter your full name.');
+          const msg = 'Please enter your full name.';
+          setFormError(msg);
+          error('Validation Error', msg);
           setIsSubmitting(false);
           return;
         }
@@ -62,9 +71,11 @@ export const LoginPage: React.FC = () => {
         success('Account created', `Welcome, ${displayName}!`);
       }
     } catch (err: any) {
+      const msg = err?.message || 'Please check your credentials.';
+      setFormError(msg);
       error(
         mode === 'signin' ? 'Sign In Notice' : 'Registration Notice',
-        err?.message || 'Please check your credentials.'
+        msg
       );
     } finally {
       setIsSubmitting(false);
@@ -96,14 +107,14 @@ export const LoginPage: React.FC = () => {
 
         {/* Login Card */}
         <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 sm:p-8 space-y-5">
-          {/* Google Sign-in */}
+          {/* Google Sign-in (Deactivated for now) */}
           <button
             type="button"
-            onClick={handleGoogleLogin}
-            disabled={isSubmitting || loading}
-            className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-sm font-semibold shadow-xs transition-colors cursor-pointer"
+            disabled={true}
+            title="Google Sign-In is temporarily deactivated"
+            className="w-full flex items-center justify-center gap-3 py-2.5 px-4 rounded-xl border border-slate-200 bg-slate-100 text-slate-400 text-sm font-semibold opacity-60 cursor-not-allowed select-none"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 opacity-50" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -132,11 +143,14 @@ export const LoginPage: React.FC = () => {
             </span>
           </div>
 
-          {/* Tabs: Sign In / Register */}
+          {/* Tabs: Sign In / Register (Register deactivated for now) */}
           <div className="flex border-b border-slate-200">
             <button
               type="button"
-              onClick={() => setMode('signin')}
+              onClick={() => {
+                setMode('signin');
+                setFormError(null);
+              }}
               className={`flex-1 py-2 text-xs font-bold text-center border-b-2 transition-colors cursor-pointer ${
                 mode === 'signin'
                   ? 'border-[#002B49] text-[#002B49]'
@@ -147,12 +161,9 @@ export const LoginPage: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => setMode('signup')}
-              className={`flex-1 py-2 text-xs font-bold text-center border-b-2 transition-colors cursor-pointer ${
-                mode === 'signup'
-                  ? 'border-[#002B49] text-[#002B49]'
-                  : 'border-transparent text-slate-400 hover:text-slate-700'
-              }`}
+              disabled={true}
+              title="Faculty account registration is temporarily deactivated"
+              className="flex-1 py-2 text-xs font-bold text-center border-b-2 border-transparent text-slate-300 opacity-60 cursor-not-allowed select-none"
             >
               Register Faculty Account
             </button>
@@ -160,6 +171,12 @@ export const LoginPage: React.FC = () => {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-3.5">
+            {formError && (
+              <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs font-medium text-rose-800">
+                {formError}
+              </div>
+            )}
+
             {mode === 'signup' && (
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -172,7 +189,10 @@ export const LoginPage: React.FC = () => {
                     required
                     placeholder="e.g. Dr. Jane Smith"
                     value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
+                    onChange={(e) => {
+                      setDisplayName(e.target.value);
+                      if (formError) setFormError(null);
+                    }}
                     className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#002B49]/20 focus:border-[#002B49]"
                   />
                 </div>
@@ -190,14 +210,19 @@ export const LoginPage: React.FC = () => {
                   required
                   placeholder="faculty@ucanwest.ca"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (formError) setFormError(null);
+                  }}
                   className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#002B49]/20 focus:border-[#002B49]"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Password</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">Password</label>
+              </div>
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -205,7 +230,10 @@ export const LoginPage: React.FC = () => {
                   required
                   placeholder="••••••••"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (formError) setFormError(null);
+                  }}
                   className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#002B49]/20 focus:border-[#002B49]"
                 />
               </div>
@@ -243,42 +271,6 @@ export const LoginPage: React.FC = () => {
               <ArrowRight className="w-4 h-4 text-amber-400" />
             </button>
           </form>
-
-          {/* Quick Faculty Profiles */}
-          <div className="pt-2 border-t border-slate-100">
-            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2 text-center">
-              Quick Faculty Profiles (1-Click Access)
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => signInWithPresetAccount('lead_mohsen_ghodrat')}
-                className="flex items-center gap-2 p-2 rounded-xl border border-amber-200 bg-amber-50/70 hover:bg-amber-100 text-left transition-colors cursor-pointer group"
-              >
-                <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                  MG
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-900 truncate">Dr. Mohsen Ghodrat</div>
-                  <div className="text-[10px] text-amber-800 font-medium">Workshop Lead</div>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => signInWithPresetAccount('admin_1')}
-                className="flex items-center gap-2 p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-left transition-colors cursor-pointer group"
-              >
-                <div className="w-7 h-7 rounded-lg bg-[#002B49] text-white flex items-center justify-center font-bold text-xs shrink-0">
-                  AD
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-900 truncate">UCW Administrator</div>
-                  <div className="text-[10px] text-slate-600 font-medium">Governance & Curriculum</div>
-                </div>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Footer info */}

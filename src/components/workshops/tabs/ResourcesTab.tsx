@@ -13,8 +13,8 @@ export const ResourcesTab: React.FC<ResourcesTabProps> = ({
   setWorkshop,
   allMaterials,
 }) => {
-  const required = workshop.requiredResources || [];
-  const optional = workshop.optionalResources || [];
+  const required = (workshop.requiredResources || []).filter((r) => !r.materialId);
+  const optional = (workshop.optionalResources || []).filter((r) => !r.materialId);
 
   const handleAddResource = (type: 'required' | 'optional') => {
     const newRes: WorkshopResource = {

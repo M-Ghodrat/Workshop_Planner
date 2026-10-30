@@ -63,7 +63,51 @@ export const FullOverviewTab: React.FC<FullOverviewTabProps> = ({
   const { success } = useToast();
   const [copied, setCopied] = React.useState(false);
 
-  const attachedMaterials = materials.filter((m) => m.workshopId === workshop.id);
+  const attachedMaterials = materials.filter((m) => {
+    if (m.activityId) return false;
+    if (workshop.id && m.workshopId === workshop.id) return true;
+    if (
+      workshop.prefix?.trim() &&
+      workshop.code?.trim() &&
+      m.workshopTitle &&
+      m.workshopTitle
+        .toLowerCase()
+        .includes(`${workshop.prefix.trim().toLowerCase()} ${workshop.code.trim().toLowerCase()}`)
+    ) {
+      return true;
+    }
+    return false;
+  });
+
+  const teachingNotesBoxes = React.useMemo(() => {
+    if (Array.isArray(workshop.teachingNotes) && workshop.teachingNotes.length > 0) {
+      const nonEmpty = workshop.teachingNotes.filter((tn) => tn.content?.trim());
+      if (nonEmpty.length > 0) return nonEmpty;
+    }
+    if (workshop.contentNotes?.trim()) {
+      const parts = workshop.contentNotes
+        .split(/\n\s*---\s*\n/)
+        .map((p) => p.trim())
+        .filter(Boolean);
+      return parts.map((part, idx) => ({
+        id: `tn_parsed_${idx}`,
+        title:
+          part.includes('## Workshop Teaching Plan')
+            ? `Teaching Plan #${idx + 1}`
+            : parts.length > 1
+            ? `Lecture Teaching Note #${idx + 1}`
+            : 'Teaching Note',
+        templateType: part.includes('## Workshop Teaching Plan')
+          ? ('teaching_plan' as const)
+          : ('lecture_teaching_note' as const),
+        content: part,
+      }));
+    }
+    return [];
+  }, [workshop.teachingNotes, workshop.contentNotes]);
+
+  const cleanRequiredResources = (workshop.requiredResources || []).filter((r) => !r.materialId);
+  const cleanOptionalResources = (workshop.optionalResources || []).filter((r) => !r.materialId);
   const totalMinutes = (workshop.topics || []).reduce(
     (acc, t) => acc + (Number(t.durationMinutes) || 0),
     0
@@ -106,8 +150,8 @@ ${(workshop.activities || [])
   .join('\n\n')}
 
 5. RESOURCES:
-Required: ${(workshop.requiredResources || []).map((r) => r.title).join(', ') || 'None'}
-Optional: ${(workshop.optionalResources || []).map((r) => r.title).join(', ') || 'None'}
+Required: ${cleanRequiredResources.map((r) => r.title).join(', ') || 'None'}
+Optional: ${cleanOptionalResources.map((r) => r.title).join(', ') || 'None'}
 
 6. FACULTY DEVELOPERS:
 ${(workshop.assignedDevelopers || []).map((d) => `- ${d.name} (${d.role})`).join('\n')}
@@ -404,35 +448,65 @@ ${(workshop.assignedDevelopers || []).map((d) => `- ${d.name} (${d.role})`).join
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3">
-              {workshop.activities.map((act, idx) => (
-                <div
-                  key={act.id || idx}
-                  className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2 text-xs"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-black text-slate-950 text-sm">
-                      Activity {idx + 1}: {act.title}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 text-[10px] font-bold">
-                        {act.type}
+              {workshop.activities.map((act, idx) => {
+                const actFiles = [
+                  ...(act.attachments || []),
+                  ...materials.filter((m) => m.activityId === act.id),
+                ].filter((m, i, arr) => m?.id && arr.findIndex((x) => x.id === m.id) === i);
+
+                return (
+                  <div
+                    key={act.id || idx}
+                    className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2 text-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-slate-950 text-sm">
+                        Activity {idx + 1}: {act.title}
                       </span>
-                      <span className="text-slate-600 font-mono text-[11px] font-bold">
-                        {act.estimatedMinutes || 20} mins
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 text-[10px] font-bold">
+                          {act.type}
+                        </span>
+                        <span className="text-slate-600 font-mono text-[11px] font-bold">
+                          {act.estimatedMinutes || 20} mins
+                        </span>
+                      </div>
                     </div>
+                    {act.description && (
+                      <p className="text-slate-700 leading-relaxed">{act.description}</p>
+                    )}
+                    {act.instructions && (
+                      <div className="p-2.5 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-700">
+                        <strong className="text-slate-900 font-bold">Facilitator Instructions:</strong>{' '}
+                        {act.instructions}
+                      </div>
+                    )}
+                    {actFiles.length > 0 && (
+                      <div className="pt-1 space-y-1.5">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
+                          Activity Files ({actFiles.length})
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {actFiles.map((file) => (
+                            <button
+                              key={file.id}
+                              type="button"
+                              onClick={() => onOpenMaterialPreview?.(file)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-blue-400 text-xs font-bold text-slate-800 cursor-pointer shadow-2xs"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-blue-600" />
+                              <span>{file.title}</span>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                ({file.fileName})
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  {act.description && (
-                    <p className="text-slate-700 leading-relaxed">{act.description}</p>
-                  )}
-                  {act.instructions && (
-                    <div className="p-2.5 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-700">
-                      <strong className="text-slate-900 font-bold">Facilitator Instructions:</strong>{' '}
-                      {act.instructions}
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
@@ -464,11 +538,11 @@ ${(workshop.assignedDevelopers || []).map((d) => `- ${d.name} (${d.role})`).join
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                Required Resources ({workshop.requiredResources?.length || 0})
+                Required Resources ({cleanRequiredResources.length})
               </h4>
-              {workshop.requiredResources && workshop.requiredResources.length > 0 ? (
+              {cleanRequiredResources.length > 0 ? (
                 <div className="space-y-2">
-                  {workshop.requiredResources.map((res, i) => (
+                  {cleanRequiredResources.map((res, i) => (
                     <div key={i} className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs">
                       <div className="font-bold text-slate-900">{res.title}</div>
                       {res.description && (
@@ -599,16 +673,30 @@ ${(workshop.assignedDevelopers || []).map((d) => `- ${d.name} (${d.role})`).join
             )}
           </div>
 
-          {/* Lecture Script / Content Notes */}
-          {workshop.contentNotes && (
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 text-xs space-y-1.5">
-              <div className="font-black text-slate-950 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Lecture Narrative & Facilitator Scripts</span>
-              </div>
-              <pre className="text-slate-800 font-sans text-xs whitespace-pre-wrap leading-relaxed">
-                {workshop.contentNotes}
-              </pre>
+          {/* Teaching Notes (Rendered in Separate Boxes) */}
+          {teachingNotesBoxes.length > 0 && (
+            <div className="space-y-3">
+              {teachingNotesBoxes.map((note, idx) => (
+                <div
+                  key={note.id || idx}
+                  className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 text-xs space-y-2"
+                >
+                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                    <div className="font-black text-slate-950 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{note.title || `Teaching Note #${idx + 1}`}</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-600 text-[10px] font-bold uppercase tracking-wider">
+                      {note.templateType === 'teaching_plan'
+                        ? 'Teaching Plan'
+                        : 'Lecture Teaching Note'}
+                    </span>
+                  </div>
+                  <pre className="text-slate-800 font-sans text-xs whitespace-pre-wrap leading-relaxed">
+                    {note.content}
+                  </pre>
+                </div>
+              ))}
             </div>
           )}
 

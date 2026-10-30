@@ -90,8 +90,8 @@ export const calculateWorkshopProgress = (
     : 'No experiential activities planned';
 
   // 5. Resources & References
-  const reqResourcesCount = workshop.requiredResources?.length || 0;
-  const optResourcesCount = workshop.optionalResources?.length || 0;
+  const reqResourcesCount = (workshop.requiredResources || []).filter((r) => !r.materialId).length;
+  const optResourcesCount = (workshop.optionalResources || []).filter((r) => !r.materialId).length;
   const totalResources = reqResourcesCount + optResourcesCount;
   const hasResources = totalResources > 0;
   const resourcesDetail = hasResources
@@ -114,21 +114,25 @@ export const calculateWorkshopProgress = (
   // 7. Materials & Content
   const workshopCodeStr = `${workshop.prefix || ''} ${workshop.code || ''}`.trim().toLowerCase();
   const directMaterialsCount = allMaterials.filter((m: any) => {
+    if (m.activityId) return false;
     if (workshop.id && m.workshopId === workshop.id) return true;
     if (workshop.id && m.workshopIds && m.workshopIds.includes(workshop.id)) return true;
     if (workshopCodeStr && m.workshopCode && m.workshopCode.trim().toLowerCase() === workshopCodeStr) return true;
     return false;
   }).length;
-  const hasNotes = Boolean(workshop.contentNotes?.trim());
+  const hasNotes = Boolean(
+    workshop.contentNotes?.trim() ||
+      (workshop.teachingNotes && workshop.teachingNotes.some((n) => n.content?.trim()))
+  );
   const hasMaterials = directMaterialsCount > 0 || hasNotes;
   const materialsDetail =
     directMaterialsCount > 0 && hasNotes
-      ? `${directMaterialsCount} file(s) attached + lecture notes`
+      ? `${directMaterialsCount} file(s) attached + teaching notes`
       : directMaterialsCount > 0
       ? `${directMaterialsCount} file(s) uploaded/attached`
       : hasNotes
-      ? 'Lecture notes / outline provided'
-      : 'No files or lecture notes attached';
+      ? 'Teaching notes provided'
+      : 'No files or teaching notes attached';
 
   // 8. Faculty Collaborators
   const devsCount = workshop.assignedDevelopers?.length || 0;

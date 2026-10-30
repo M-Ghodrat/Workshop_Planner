@@ -148,6 +148,22 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["courseId", "courseLoId", "targetType", "targetId", "targetLoId", "mappedBy"]
+    },
+    "SystemBackup": {
+      "title": "SystemBackup",
+      "description": "Complete system backup snapshot of all workshops, series, files, users, courses, and mappings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique backup ID", "pattern": "^[a-zA-Z0-9_-]+$" },
+        "name": { "type": "string", "description": "Backup label", "maxLength": 200 },
+        "description": { "type": "string", "description": "Backup notes", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "description": "UID of Project Lead who created backup", "maxLength": 128 },
+        "createdByName": { "type": "string", "description": "Display name of creator", "maxLength": 150 },
+        "counts": { "type": "object", "description": "Counts of backed up entities" },
+        "snapshot": { "type": "object", "description": "Full serialized snapshot of collections" }
+      },
+      "required": ["id", "name", "createdAt", "createdBy"]
     }
   },
   "firestore": {
@@ -174,6 +190,10 @@
     "/outcome_mappings/{mappingId}": {
       "schema": "OutcomeMapping",
       "description": "Outcome mapping associations between courses and workshops/series"
+    },
+    "/backups/{backupId}": {
+      "schema": "SystemBackup",
+      "description": "System backup snapshots saved by Project Lead"
     }
   }
 }

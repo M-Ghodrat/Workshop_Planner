@@ -12,6 +12,7 @@ import {
   Sparkles,
   ChevronRight,
   ShieldCheck,
+  Database,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE_LABELS } from '../../types';
@@ -84,6 +85,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       visible: isAdmin,
       badge: 'Admin',
       description: 'Manage faculty & roles',
+    },
+    {
+      id: 'backups',
+      label: 'System Backups',
+      icon: Database,
+      visible: isProjectLead,
+      badge: 'Lead',
+      description: 'Save & restore database backups',
     },
   ];
 

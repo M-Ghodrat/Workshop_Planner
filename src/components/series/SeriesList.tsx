@@ -1092,9 +1092,19 @@ export const SeriesList: React.FC<SeriesListProps> = ({
 
               {/* Workshops Belonging to This Series */}
               {(() => {
-                const seriesWorkshops = safeWorkshops.filter((w) =>
+                const rawSeriesWorkshops = safeWorkshops.filter((w) =>
                   isWorkshopInSeries(w, selectedSeriesForView)
                 );
+                const seriesWorkshops = [...rawSeriesWorkshops].sort((a, b) => {
+                  if (!isAdmin && !isWorkshopLead) {
+                    const aAssigned = isUserAssignedToWorkshop(a, userProfile) ? 0 : 1;
+                    const bAssigned = isUserAssignedToWorkshop(b, userProfile) ? 0 : 1;
+                    if (aAssigned !== bAssigned) return aAssigned - bAssigned;
+                  }
+                  return `${a.prefix || ''} ${a.code || ''}`.localeCompare(
+                    `${b.prefix || ''} ${b.code || ''}`
+                  );
+                });
                 const assignedToMeCount = seriesWorkshops.filter((w) =>
                   isUserAssignedToWorkshop(w, userProfile)
                 ).length;
@@ -1107,7 +1117,7 @@ export const SeriesList: React.FC<SeriesListProps> = ({
                       </h4>
                       {assignedToMeCount > 0 && (
                         <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                          {assignedToMeCount} assigned to you
+                          {assignedToMeCount} assigned to you (on top) • {seriesWorkshops.length - assignedToMeCount} in read mode
                         </span>
                       )}
                     </div>
@@ -1131,7 +1141,8 @@ export const SeriesList: React.FC<SeriesListProps> = ({
                           const canViewFullContent = canUserViewFullWorkshopContent(
                             w,
                             userProfile,
-                            localSeries
+                            localSeries,
+                            safeWorkshops
                           );
 
                           return (
@@ -1165,6 +1176,12 @@ export const SeriesList: React.FC<SeriesListProps> = ({
                                     {isAssignedToMe && (
                                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
                                         Assigned to You
+                                      </span>
+                                    )}
+                                    {!isAssignedToMe && canViewFullContent && !canEditThis && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-sky-100 text-sky-900 border border-sky-200 shrink-0">
+                                        <Eye className="w-2.5 h-2.5 text-sky-700" />
+                                        <span>Read Mode</span>
                                       </span>
                                     )}
                                     {!canViewFullContent && (
@@ -1214,11 +1231,11 @@ export const SeriesList: React.FC<SeriesListProps> = ({
                                       type="button"
                                       onClick={() => onSelectWorkshop(w, 'preview')}
                                       className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-semibold cursor-pointer"
-                                      title="Preview Outline"
+                                      title="Preview Document"
                                     >
                                       <Eye className="w-3.5 h-3.5" />
                                     </button>
-                                    {canEditThis && (
+                                    {canEditThis ? (
                                       <button
                                         type="button"
                                         onClick={() => onSelectWorkshop(w, 'edit')}
@@ -1226,6 +1243,16 @@ export const SeriesList: React.FC<SeriesListProps> = ({
                                       >
                                         <Edit className="w-3 h-3 text-amber-400" />
                                         <span>Edit Outline</span>
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => onSelectWorkshop(w, 'edit')}
+                                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-sky-300 bg-sky-50 hover:bg-sky-100 text-[#002B49] text-xs font-bold cursor-pointer transition-colors shadow-2xs"
+                                        title="Open full workshop outline in Read Mode"
+                                      >
+                                        <Eye className="w-3 h-3 text-sky-700" />
+                                        <span>Read Mode</span>
                                       </button>
                                     )}
                                   </>

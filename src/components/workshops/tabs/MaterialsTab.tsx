@@ -27,7 +27,14 @@ import {
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
 import { materialService } from '../../../services/materialService';
-import { Workshop, Material, MaterialCategory, UserProfile } from '../../../types';
+import {
+  Workshop,
+  Material,
+  MaterialCategory,
+  UserProfile,
+  TeachingNoteItem,
+} from '../../../types';
+import { Plus } from 'lucide-react';
 
 interface MaterialsTabProps {
   workshop: Workshop;
@@ -55,48 +62,42 @@ const CATEGORIES: (MaterialCategory | 'All')[] = [
   'Other',
 ];
 
-const TEMPLATE_SCRIPTS = {
-  caseStudy: `## Case Study Discussion Facilitation Guide
+const TEMPLATE_SCRIPTS: Record<'lecture_teaching_note' | 'teaching_plan', { label: string; script: string }> = {
+  lecture_teaching_note: {
+    label: 'Lecture Teaching Note',
+    script: `## Lecture Teaching Note
 
-### 1. Context & Business Challenge (10 mins)
-- Introduce the organization background, market environment, and core dilemma.
-- Highlight the 3 critical data points students must analyze.
+### 1. Core Concept & Pedagogical Objective
+- Key Concept / Theory: [Enter core topic or framework]
+- Target Learning Outcome(s): [e.g., LO1, LO2]
 
-### 2. Small Group Breakout Dynamics (20 mins)
-- Divide cohort into teams of 3–4 students.
-- Task 1: Identify root cause vs symptoms.
-- Task 2: Propose 2 viable strategic alternatives.
+### 2. Lecture Narrative & Key Talking Points
+- Opening Hook & Real-World Context:
+- Core Conceptual Explanation & Definitions:
+- Applied Business / Technical Examples:
 
-### 3. Cohort Synthesis & Debrief (15 mins)
-- Poll group recommendations on the whiteboard.
-- Frame discussion against Bloom's Analyze & Evaluate criteria.`,
+### 3. Discussion Prompts & Check for Understanding
+- Question 1:
+- Question 2:
+- Key Takeaway Summary:`,
+  },
+  teaching_plan: {
+    label: 'Teaching Plan',
+    script: `## Workshop Teaching Plan
 
-  techLab: `## Hands-On Technology / Quantitative Lab Guide
+### 1. Session Pacing & Instructional Flow
+- Segment Duration: [e.g., 30 mins]
+- Delivery Mode: [Lecture / Interactive Demo / Guided Walkthrough]
 
-### 1. Environment & Setup Verification (5 mins)
-- Confirm all students have accessed the required web portal or software environment.
-- Reference dataset files attached in the Files repository.
+### 2. Step-by-Step Facilitator Plan
+- Step 1 (Introduction & Framing):
+- Step 2 (Core Demonstration / Content Delivery):
+- Step 3 (Student Engagement & Debrief):
 
-### 2. Step-by-Step Technical Walkthrough (25 mins)
-- Step 1: Data ingestion and cleansing.
-- Step 2: Running baseline analytical models.
-- Step 3: Interpreting output metrics and error bounds.
-
-### 3. Common Troubleshooting Notes
-- If package import fails, ensure Python 3.10+ / Excel add-ins are enabled.
-- Ensure student output matches benchmark table in instructor deck.`,
-
-  discussion: `## Interactive Discussion & Concept Deep-Dive
-
-### 1. Opening Provocation Question
-- "How does this emerging framework challenge conventional business practices in 2026?"
-
-### 2. Guided Socratic Prompts
-- Ask for contrasting perspectives between corporate vs start-up applications.
-- Challenge assumptions regarding resource constraints and regulatory compliance.
-
-### 3. Summary & Knowledge Reinforcement
-- Connect discussion takeaways directly to Workshop Learning Outcomes (LO1 & LO2).`,
+### 3. Required Slides, Visuals & Transition Cues
+- Slide / Asset Reference:
+- Transition to Next Topic / Activity:`,
+  },
 };
 
 export const MaterialsTab: React.FC<MaterialsTabProps> = ({
@@ -154,19 +155,16 @@ export const MaterialsTab: React.FC<MaterialsTabProps> = ({
     const all = Array.from(uniqueMap.values());
 
     return all.filter((m) => {
+      // Exclude files uploaded specifically under an Activity & Lab card
+      if (m.activityId) return false;
+
       // 1. Direct ID match
       if (workshop.id && m.workshopId === workshop.id) return true;
 
       // 2. Explicitly uploaded in this current session
       if (localMaterials.some((lm) => lm.id === m.id)) return true;
 
-      // 3. Explicitly referenced in workshop required or optional resources
-      const isReferencedInResources =
-        (workshop.requiredResources || []).some((r) => r.materialId === m.id) ||
-        (workshop.optionalResources || []).some((r) => r.materialId === m.id);
-      if (isReferencedInResources) return true;
-
-      // 4. Exact Prefix & Code matching if workshop has a specific identifiable code (e.g., BUSI 654)
+      // 3. Exact Prefix & Code matching if workshop has a specific identifiable code (e.g., BUSI 654)
       if (
         workshop.prefix?.trim() &&
         workshop.code?.trim() &&
@@ -178,7 +176,7 @@ export const MaterialsTab: React.FC<MaterialsTabProps> = ({
 
       return false;
     });
-  }, [materials, localMaterials, workshop.id, workshop.prefix, workshop.code, workshop.requiredResources, workshop.optionalResources]);
+  }, [materials, localMaterials, workshop.id, workshop.prefix, workshop.code]);
 
   const filteredMaterials = useMemo(() => {
     return workshopMaterials.filter((m) => {
@@ -271,34 +269,15 @@ export const MaterialsTab: React.FC<MaterialsTabProps> = ({
         return [newMaterial, ...prev];
       });
 
-      // Synchronously link the uploaded material to the workshop's requiredResources
-      if (setWorkshop) {
-        setWorkshop((prev) => {
-          const currentResources = prev.requiredResources || [];
-          const exists = currentResources.some((r) => r.materialId === newMaterial.id);
-          const updatedResources = exists
-            ? currentResources
-            : [
-                ...currentResources,
-                {
-                  id: `res_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-                  title: newMaterial.title,
-                  description: newMaterial.description || `${newMaterial.category} file (${newMaterial.fileName})`,
-                  url: newMaterial.downloadUrl,
-                  materialId: newMaterial.id,
-                  materialName: newMaterial.fileName,
-                },
-              ];
-
-          return {
-            ...prev,
-            id: prev.id || targetWorkshopId,
-            requiredResources: updatedResources,
-          };
-        });
+      // Keep uploaded files only under Materials & Content -> Files & Assets (do not add to requiredResources)
+      if (setWorkshop && !workshop.id) {
+        setWorkshop((prev) => ({
+          ...prev,
+          id: prev.id || targetWorkshopId,
+        }));
       }
 
-      success('File Uploaded', `"${uploadTitle}" was added to this workshop.`);
+      success('File Uploaded', `"${uploadTitle}" was added to Files & Assets.`);
       setSelectedFile(null);
       setTitle('');
       setDescription('');
@@ -344,15 +323,88 @@ export const MaterialsTab: React.FC<MaterialsTabProps> = ({
     }
   };
 
-  const insertTemplate = (templateKey: keyof typeof TEMPLATE_SCRIPTS) => {
-    const snippet = TEMPLATE_SCRIPTS[templateKey];
-    if (setWorkshop) {
-      setWorkshop((prev) => ({
-        ...prev,
-        contentNotes: prev.contentNotes ? `${prev.contentNotes}\n\n${snippet}` : snippet,
-      }));
-      success('Template Inserted', 'Guide template added to workshop lecture content.');
+  // Teaching Notes list (allows multiple Lecture Teaching Notes / Teaching Plans, and selecting a template replaces content of that item)
+  const teachingNoteItems: TeachingNoteItem[] = useMemo(() => {
+    if (Array.isArray(workshop.teachingNotes) && workshop.teachingNotes.length > 0) {
+      return workshop.teachingNotes;
     }
+    return [
+      {
+        id: 'tn_default_1',
+        title: 'Teaching Note 1',
+        templateType: 'lecture_teaching_note',
+        content: workshop.contentNotes || '',
+      },
+    ];
+  }, [workshop.teachingNotes, workshop.contentNotes]);
+
+  const syncTeachingNotes = (items: TeachingNoteItem[]) => {
+    if (!setWorkshop) return;
+    const compiledContent = items
+      .map((item) => item.content.trim())
+      .filter(Boolean)
+      .join('\n\n---\n\n');
+    setWorkshop((prev) => ({
+      ...prev,
+      teachingNotes: items,
+      contentNotes: compiledContent,
+    }));
+  };
+
+  const handleApplyTemplateToItem = (
+    index: number,
+    templateKey: 'lecture_teaching_note' | 'teaching_plan'
+  ) => {
+    const templateObj = TEMPLATE_SCRIPTS[templateKey];
+    const updated = [...teachingNoteItems];
+    // Replace content in this item so templates never accumulate
+    updated[index] = {
+      ...updated[index],
+      templateType: templateKey,
+      title: `${templateObj.label} #${index + 1}`,
+      content: templateObj.script,
+    };
+    syncTeachingNotes(updated);
+    success('Template Applied', `Replaced note content with ${templateObj.label} template.`);
+  };
+
+  const handleAddTeachingNoteItem = (templateKey: 'lecture_teaching_note' | 'teaching_plan') => {
+    const templateObj = TEMPLATE_SCRIPTS[templateKey];
+    const nextIndex = teachingNoteItems.length + 1;
+    const newItem: TeachingNoteItem = {
+      id: `tn_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      title: `${templateObj.label} #${nextIndex}`,
+      templateType: templateKey,
+      content: templateObj.script,
+    };
+    syncTeachingNotes([...teachingNoteItems, newItem]);
+    success('Added Teaching Note', `Added a new ${templateObj.label} section.`);
+  };
+
+  const handleUpdateTeachingNoteContent = (index: number, newContent: string) => {
+    const updated = [...teachingNoteItems];
+    updated[index] = {
+      ...updated[index],
+      content: newContent,
+    };
+    syncTeachingNotes(updated);
+  };
+
+  const handleDeleteTeachingNoteItem = (index: number) => {
+    if (teachingNoteItems.length <= 1) {
+      // Clear the single remaining note rather than leaving 0 boxes
+      syncTeachingNotes([
+        {
+          id: 'tn_default_1',
+          title: 'Lecture Teaching Note #1',
+          templateType: 'lecture_teaching_note',
+          content: '',
+        },
+      ]);
+      return;
+    }
+    const updated = teachingNoteItems.filter((_, i) => i !== index);
+    syncTeachingNotes(updated);
   };
 
   const getFileIcon = (fileType: string) => {
@@ -429,7 +481,7 @@ export const MaterialsTab: React.FC<MaterialsTabProps> = ({
               }`}
             >
               <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Lecture Content & Notes</span>
+              <span>Teaching Notes</span>
             </button>
 
             <button
@@ -773,66 +825,110 @@ export const MaterialsTab: React.FC<MaterialsTabProps> = ({
           </div>
         )}
 
-        {/* ===================== SUBTAB 2: LECTURE CONTENT & NOTES ===================== */}
+        {/* ===================== SUBTAB 2: TEACHING NOTES ===================== */}
         {subTab === 'content' && (
           <div className="pt-5 space-y-6 animate-in fade-in duration-150">
-            {/* Quick Template Inserter */}
+            {/* Header & Add New Teaching Note / Teaching Plan Buttons */}
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-0.5">
                 <div className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Insert Pedagogical Guide Template</span>
+                  <span>Teaching Notes & Teaching Plans</span>
                 </div>
                 <p className="text-[11px] text-slate-500">
-                  Quickly append structured teaching blueprints to your workshop content.
+                  Selecting a template inside any note replaces its content (does not accumulate). Use the buttons on the right to add additional Teaching Notes or Teaching Plans.
                 </p>
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
-                  onClick={() => insertTemplate('caseStudy')}
-                  className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-800 text-[11px] font-bold transition-colors cursor-pointer"
+                  onClick={() => handleAddTeachingNoteItem('lecture_teaching_note')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#002B49] hover:bg-[#003d66] text-white text-[11px] font-bold transition-colors cursor-pointer shadow-2xs"
                 >
-                  + Case Study Plan
+                  <Plus className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Add Lecture Teaching Note</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => insertTemplate('techLab')}
-                  className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-800 text-[11px] font-bold transition-colors cursor-pointer"
+                  onClick={() => handleAddTeachingNoteItem('teaching_plan')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 text-[11px] font-bold transition-colors cursor-pointer shadow-2xs"
                 >
-                  + Quantitative / Tech Lab
-                </button>
-                <button
-                  type="button"
-                  onClick={() => insertTemplate('discussion')}
-                  className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-slate-800 text-[11px] font-bold transition-colors cursor-pointer"
-                >
-                  + Socratic Discussion
+                  <Plus className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Add Teaching Plan</span>
                 </button>
               </div>
             </div>
 
-            {/* Lecture Script & Teaching Narrative */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-black text-slate-950 uppercase tracking-wider flex items-center gap-1.5">
-                  <BookOpen className="w-4 h-4 text-blue-600" />
-                  <span>Workshop Lecture Narrative & Facilitator Scripts</span>
-                </label>
-                <span className="text-[10px] text-slate-400">Supports Markdown formatting</span>
-              </div>
-              <textarea
-                rows={8}
-                placeholder="Enter the detailed teaching narrative, key conceptual explanations, formulas, frameworks, slide-by-slide cues, and lecture scripts for this 2-hour workshop..."
-                value={workshop.contentNotes || ''}
-                onChange={(e) => updateContentField('contentNotes', e.target.value)}
-                className="w-full p-4 text-xs font-mono border border-slate-300 rounded-xl focus:outline-hidden bg-white text-slate-900 leading-relaxed shadow-2xs"
-              />
+            {/* Teaching Note / Plan Entries */}
+            <div className="space-y-4">
+              {teachingNoteItems.map((item, idx) => (
+                <div
+                  key={item.id || idx}
+                  className="p-4 sm:p-5 rounded-2xl border border-slate-200 bg-white space-y-3 shadow-2xs"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-md bg-[#002B49] text-white flex items-center justify-center text-[11px] font-black">
+                        {idx + 1}
+                      </span>
+                      <span className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                        {item.title || `Teaching Note #${idx + 1}`}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Apply Template (Replaces Content):
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyTemplateToItem(idx, 'lecture_teaching_note')}
+                        className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-colors cursor-pointer ${
+                          item.templateType === 'lecture_teaching_note'
+                            ? 'bg-blue-50 border-blue-300 text-blue-900'
+                            : 'bg-white border-slate-200 hover:bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        Lecture Teaching Note
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyTemplateToItem(idx, 'teaching_plan')}
+                        className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-colors cursor-pointer ${
+                          item.templateType === 'teaching_plan'
+                            ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                            : 'bg-white border-slate-200 hover:bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        Teaching Plan
+                      </button>
+                      {teachingNoteItems.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTeachingNoteItem(idx)}
+                          className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer ml-1"
+                          title="Remove this Teaching Note"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <textarea
+                    rows={8}
+                    placeholder="Select 'Lecture Teaching Note' or 'Teaching Plan' above to load a clean template, or write your teaching notes here..."
+                    value={item.content}
+                    onChange={(e) => handleUpdateTeachingNoteContent(idx, e.target.value)}
+                    className="w-full p-4 text-xs font-mono border border-slate-300 rounded-xl focus:outline-hidden bg-white text-slate-900 leading-relaxed shadow-2xs"
+                  />
+                </div>
+              ))}
             </div>
 
-            {/* Instructor Notes & Facilitator Secret Guide */}
-            <div className="space-y-2">
+            {/* Instructor Notes & Facilitator Guide */}
+            <div className="space-y-2 pt-2 border-t border-slate-100">
               <label className="block text-xs font-black text-slate-950 uppercase tracking-wider flex items-center gap-1.5">
                 <MessageSquare className="w-4 h-4 text-emerald-600" />
                 <span>Instructor Teaching Guide & Cohort Management Notes</span>
@@ -866,28 +962,6 @@ export const MaterialsTab: React.FC<MaterialsTabProps> = ({
                 onChange={(e) => updateContentField('equipmentRequirements', e.target.value)}
                 className="w-full p-4 text-xs border border-slate-300 rounded-xl focus:outline-hidden bg-white text-slate-900 leading-relaxed shadow-2xs"
               />
-            </div>
-
-            {/* Summary Check Card */}
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2">
-              <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                <FileCheck className="w-4 h-4 text-blue-600" />
-                <span>Pre-Workshop Delivery Checklist</span>
-              </div>
-              <ul className="space-y-1.5 text-slate-600 text-[11px]">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>All slides, decks, and case studies uploaded under the <strong>Files & Assets</strong> sub-tab.</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>Lecture script and discussion prompts outlined under the <strong>Lecture Content & Notes</strong> sub-tab.</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>Student software prerequisites confirmed for the 2-hour session.</span>
-                </li>
-              </ul>
             </div>
           </div>
         )}

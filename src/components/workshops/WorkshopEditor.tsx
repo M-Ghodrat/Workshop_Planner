@@ -101,27 +101,34 @@ const normalizeWorkshopForComparison = (w: Workshop) => {
         durationMinutes: Number(s.durationMinutes) || 0,
       })),
     })),
+    teachingNotes: (w.teachingNotes || []).map((tn) => ({
+      id: tn.id || '',
+      title: tn.title?.trim() || '',
+      templateType: tn.templateType || 'lecture_teaching_note',
+      content: tn.content?.trim() || '',
+    })),
     activities: (w.activities || []).map((a) => ({
       title: a.title?.trim() || '',
       type: a.type || '',
       estimatedMinutes: Number(a.estimatedMinutes) || 0,
       description: a.description?.trim() || '',
       instructions: a.instructions?.trim() || '',
+      attachments: (a.attachments || []).map((m) => m.id || ''),
     })),
-    requiredResources: (w.requiredResources || []).map((r) => ({
-      title: r.title?.trim() || '',
-      description: r.description?.trim() || '',
-      url: r.url || '',
-      materialId: r.materialId || '',
-      materialName: r.materialName || '',
-    })),
-    optionalResources: (w.optionalResources || []).map((r) => ({
-      title: r.title?.trim() || '',
-      description: r.description?.trim() || '',
-      url: r.url || '',
-      materialId: r.materialId || '',
-      materialName: r.materialName || '',
-    })),
+    requiredResources: (w.requiredResources || [])
+      .filter((r) => !r.materialId)
+      .map((r) => ({
+        title: r.title?.trim() || '',
+        description: r.description?.trim() || '',
+        url: r.url || '',
+      })),
+    optionalResources: (w.optionalResources || [])
+      .filter((r) => !r.materialId)
+      .map((r) => ({
+        title: r.title?.trim() || '',
+        description: r.description?.trim() || '',
+        url: r.url || '',
+      })),
     dimensionsOfKnowledge: w.dimensionsOfKnowledge || {},
     assignedDeveloperIds: (w.assignedDeveloperIds || []).slice().sort(),
   });
@@ -293,10 +300,10 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
     };
   }, [initialWorkshop, resetDraftRef]);
 
-  // Filter available series for developers
+  // Filter available series for developers; Workshop Leads & Admins see all series
   const userId = userProfile?.id || '';
   const availableSeries = React.useMemo(() => {
-    if (isAdmin) return safeSeries;
+    if (isAdmin || isWorkshopLead || canInitiateWorkshop) return safeSeries;
     const devWorkshops = safeWorkshops.filter(
       (w) =>
         w.createdBy === userId ||
@@ -306,8 +313,14 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
     if (workshop.seriesId) {
       devSeriesIds.add(workshop.seriesId);
     }
-    return safeSeries.filter((s) => devSeriesIds.has(s.id) || s.createdBy === userId);
-  }, [safeSeries, safeWorkshops, isAdmin, userId, workshop.seriesId]);
+    return safeSeries.filter(
+      (s) =>
+        devSeriesIds.has(s.id) ||
+        s.createdBy === userId ||
+        s.leadId === userId ||
+        (Array.isArray(s.leadIds) && s.leadIds.includes(userId))
+    );
+  }, [safeSeries, safeWorkshops, isAdmin, isWorkshopLead, canInitiateWorkshop, userId, workshop.seriesId]);
 
   // Validation
   const validateForm = () => {
@@ -367,21 +380,26 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
           ...workshop,
           id: targetId,
         };
-        await workshopService.updateWorkshop(targetId, workshopToSave, userProfile);
+        const finalId = await workshopService.updateWorkshop(targetId, workshopToSave, userProfile);
+        const resolvedId = finalId || targetId;
+        const savedWorkshop: Workshop = {
+          ...workshopToSave,
+          id: resolvedId,
+        };
 
         const oldTempId = workshop.id;
-        if (oldTempId && oldTempId !== targetId) {
+        if (oldTempId && oldTempId !== resolvedId) {
           await materialService.relinkMaterialsToWorkshop(
             oldTempId,
-            targetId,
+            resolvedId,
             `${workshop.prefix || ''} ${workshop.code || ''}: ${workshop.title || ''}`.trim()
           );
         }
 
-        setWorkshop(workshopToSave);
-        setSavedSnapshot(normalizeWorkshopForComparison(workshopToSave));
+        setWorkshop(savedWorkshop);
+        setSavedSnapshot(normalizeWorkshopForComparison(savedWorkshop));
         setHasStagedMaterialFile(false);
-        onWorkshopSaved?.(workshopToSave);
+        onWorkshopSaved?.(savedWorkshop);
         if (!silent) success('Workshop Saved', `${workshop.prefix} ${workshop.code} updated successfully.`);
       } else {
         // First-time creation for this prefix and code
@@ -507,8 +525,11 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
       label: 'Resources & References',
       description: 'Required & optional reading/links',
       icon: Bookmark,
-      badge: `${(workshop.requiredResources?.length || 0) + (workshop.optionalResources?.length || 0)} resources`,
-      isFilled: ((workshop.requiredResources?.length || 0) + (workshop.optionalResources?.length || 0)) > 0,
+      badge: `${(workshop.requiredResources || []).filter((r) => !r.materialId).length + (workshop.optionalResources || []).filter((r) => !r.materialId).length} resources`,
+      isFilled:
+        (workshop.requiredResources || []).filter((r) => !r.materialId).length +
+          (workshop.optionalResources || []).filter((r) => !r.materialId).length >
+        0,
     },
     {
       id: 'dimensions',
@@ -523,7 +544,7 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
       id: 'materials',
       number: '07',
       label: 'Materials & Content',
-      description: 'Files, lecture notes, slides & checklist',
+      description: 'Files, teaching notes & tools',
       icon: FileText,
       badge: `${workshopMaterialsCount} files${workshop.contentNotes ? ' + notes' : ''}`,
       isFilled: workshopMaterialsCount > 0 || Boolean(workshop.contentNotes?.trim()),
@@ -1007,7 +1028,12 @@ export const WorkshopEditor: React.FC<WorkshopEditorProps> = ({
                   />
                 )}
                 {activeTab === 'activities' && (
-                  <ActivitiesTab workshop={workshop} setWorkshop={setWorkshop} />
+                  <ActivitiesTab
+                    workshop={workshop}
+                    setWorkshop={setWorkshop}
+                    materials={safeMaterials}
+                    onOpenPreview={onOpenMaterialPreview}
+                  />
                 )}
                 {activeTab === 'resources' && (
                   <ResourcesTab

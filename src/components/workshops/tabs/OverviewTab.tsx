@@ -28,14 +28,109 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         ...prev,
         seriesId,
         seriesName: selected?.name || '',
+        prefix: prev.prefix?.trim() ? prev.prefix : (selected?.prefix || '').toUpperCase(),
       }));
     }
   };
 
   const otherWorkshops = allWorkshops.filter((w) => w.id !== workshop.id);
+  const selectedSeriesObj = allSeries.find((s) => s.id === workshop.seriesId);
+  const isDeletedSeries = Boolean(workshop.seriesId && !selectedSeriesObj);
+  const isUnassignedSeries = !workshop.seriesId || isDeletedSeries;
 
   return (
     <div className="space-y-6">
+      {/* Prominent Workshop Series Track Assignment Section */}
+      <div
+        className={`rounded-2xl border-2 p-6 shadow-2xs transition-colors ${
+          isUnassignedSeries
+            ? 'bg-rose-50/70 border-rose-300'
+            : 'bg-emerald-50/40 border-emerald-200'
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div
+              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                isUnassignedSeries
+                  ? 'bg-rose-600 text-white'
+                  : 'bg-[#002B49] text-amber-300'
+              }`}
+            >
+              {isUnassignedSeries ? (
+                <AlertTriangle className="w-5 h-5" />
+              ) : (
+                <Layers className="w-5 h-5" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base font-bold text-slate-900">
+                  Workshop Series Assignment
+                </h3>
+                {isUnassignedSeries ? (
+                  <span className="px-2 py-0.5 rounded-md bg-rose-600 text-white text-[10px] font-black uppercase tracking-wider">
+                    Action Recommended • Unassigned
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-bold">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    Assigned to {selectedSeriesObj?.name}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-600 mt-0.5">
+                Assign this workshop to its parent UCW Workshop Series right away so it is properly grouped and does not become an unassigned (orphan) workshop.
+              </p>
+            </div>
+          </div>
+
+          <div className="w-full sm:w-80 shrink-0">
+            <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+              Select Workshop Series Track <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={workshop.seriesId || ''}
+              onChange={(e) => handleSeriesChange(e.target.value)}
+              className={`w-full px-3.5 py-2.5 text-sm font-bold border-2 rounded-xl bg-white focus:outline-hidden focus:ring-2 focus:ring-[#002B49]/20 cursor-pointer ${
+                isUnassignedSeries
+                  ? 'border-rose-400 text-rose-900'
+                  : 'border-[#002B49] text-[#002B49]'
+              }`}
+            >
+              <option value="">-- Select a Workshop Series Track --</option>
+              {isDeletedSeries && (
+                <option value={workshop.seriesId}>
+                  ⚠️ {workshop.seriesName || 'Unknown Series'} (Deleted Series Track)
+                </option>
+              )}
+              {allSeries.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.prefix})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {isUnassignedSeries && (
+          <div className="mt-4 p-3 rounded-xl bg-rose-100/90 border border-rose-300 text-rose-950 text-xs flex items-center gap-2 font-medium">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>
+              {isDeletedSeries ? (
+                <>
+                  <strong>Orphan Series Warning:</strong> This workshop&apos;s previous series was deleted. Please select an active Workshop Series above to reassign it.
+                </>
+              ) : (
+                <>
+                  <strong>Series Not Selected Yet:</strong> Please choose a Workshop Series above before saving. Saving without a series will flag this workshop with an Orphan Workshop warning in the My Workshops tab.
+                </>
+              )}
+            </span>
+          </div>
+        )}
+      </div>
+
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-2xs space-y-5">
         <div>
           <h3 className="text-base font-bold text-slate-900">Workshop Identification</h3>
@@ -44,7 +139,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Prefix */}
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -60,7 +155,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               }
               className="w-full px-3 py-2 text-sm font-semibold border border-slate-300 rounded-xl uppercase tracking-wider focus:outline-hidden focus:ring-2 focus:ring-[#002B49]/20 focus:border-[#002B49]"
             />
-            <span className="text-[10px] text-slate-400 mt-1 block">3-4 letters department prefix</span>
+            <span className="text-[10px] text-slate-400 mt-1 block">3-5 letters series/department prefix</span>
           </div>
 
           {/* Code */}
@@ -71,52 +166,12 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             <input
               type="text"
               required
-              placeholder="e.g. 654"
+              placeholder="e.g. 101"
               value={workshop.code}
               onChange={(e) => setWorkshop((prev) => ({ ...prev, code: e.target.value }))}
               className="w-full px-3 py-2 text-sm font-semibold border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#002B49]/20 focus:border-[#002B49]"
             />
             <span className="text-[10px] text-slate-400 mt-1 block">Workshop level number</span>
-          </div>
-
-          {/* Workshop Series Association */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Workshop Series
-            </label>
-            <select
-              value={workshop.seriesId || ''}
-              onChange={(e) => handleSeriesChange(e.target.value)}
-              className={`w-full px-3 py-2 text-sm border rounded-xl bg-white focus:outline-hidden focus:ring-2 focus:ring-[#002B49]/20 ${
-                workshop.seriesId && !allSeries.some((s) => s.id === workshop.seriesId)
-                  ? 'border-amber-400 text-amber-900 bg-amber-50 font-bold'
-                  : 'border-slate-300 text-slate-800'
-              }`}
-            >
-              <option value="">Standalone Workshop (No Series)</option>
-              {workshop.seriesId && !allSeries.some((s) => s.id === workshop.seriesId) && (
-                <option value={workshop.seriesId}>
-                  ⚠️ {workshop.seriesName || 'Unknown Series'} (Deleted Series Track)
-                </option>
-              )}
-              {allSeries.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            {workshop.seriesId && !allSeries.some((s) => s.id === workshop.seriesId) ? (
-              <div className="mt-2 p-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs flex items-center gap-1.5 font-medium">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>
-                  <strong>Orphan Warning:</strong> This workshop&apos;s previous series was deleted. Please select an active series track to reassign it.
-                </span>
-              </div>
-            ) : (
-              <span className="text-[10px] text-slate-400 mt-1 block">
-                Curriculum track association
-              </span>
-            )}
           </div>
         </div>
 

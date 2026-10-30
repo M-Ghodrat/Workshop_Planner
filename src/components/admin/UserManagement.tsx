@@ -261,21 +261,6 @@ export const UserManagement: React.FC<UserManagementProps> = ({
     }
   };
 
-  const handleRestoreData = async () => {
-    setIsSubmitting(true);
-    try {
-      await seedService.seedInitialData(userProfile);
-      success('Curriculum Restored', 'All sample series, workshops, courses, mappings, and materials were restored.');
-      setTimeout(() => {
-        window.location.reload();
-      }, 800);
-    } catch (err: any) {
-      error('Restore Failed', err.message || 'Could not restore sample curriculum data.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -290,17 +275,6 @@ export const UserManagement: React.FC<UserManagementProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={handleRestoreData}
-            disabled={isSubmitting}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
-            title="Restore all default UCW workshop series, workshops, courses, and mappings"
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-            <span>Restore Curriculum Data</span>
-          </button>
-
           {canManageUsersAndRoles && (
             <button
               onClick={() => setShowAddModal(true)}

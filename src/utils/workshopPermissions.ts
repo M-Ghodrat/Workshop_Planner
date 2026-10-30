@@ -364,7 +364,8 @@ export const canUserModifyWorkshop = (
 export const canUserViewFullWorkshopContent = (
   workshop: Workshop | null | undefined,
   userProfile: UserProfile | null | undefined,
-  allSeries: WorkshopSeries[] = []
+  allSeries: WorkshopSeries[] = [],
+  allWorkshops: Workshop[] = []
 ): boolean => {
   if (!workshop || !userProfile) return false;
 
@@ -378,6 +379,11 @@ export const canUserViewFullWorkshopContent = (
     return true;
   }
 
+  // Find parent series of this workshop
+  const parentSeries = allSeries.find(
+    (s) => (s.id && workshop.seriesId && s.id === workshop.seriesId) || isWorkshopInSeries(workshop, s)
+  );
+
   // Workshop Lead:
   if (userProfile.role === 'workshop_lead') {
     // 1. Orphan workshop: allow Workshop Lead to view full content to inspect, reassign or delete
@@ -385,16 +391,28 @@ export const canUserViewFullWorkshopContent = (
       return true;
     }
     // 2. Workshop in an active series they lead
-    const parentSeries = allSeries.find(
-      (s) => (s.id && workshop.seriesId && s.id === workshop.seriesId) || isWorkshopInSeries(workshop, s)
-    );
     if (parentSeries && isUserLeadOfSeries(parentSeries, userProfile)) {
       return true;
     }
     return false;
   }
 
-  // Other developers or roles who are not assigned to this workshop
+  // Developer: If developer belongs to the same series (assigned to at least one workshop in this series),
+  // they can view ALL workshops in that series in read-only mode.
+  if (parentSeries && Array.isArray(allWorkshops) && allWorkshops.length > 0) {
+    if (isSeriesAssignedToDeveloper(parentSeries, allWorkshops, userProfile)) {
+      return true;
+    }
+  }
+  if (workshop.seriesId && Array.isArray(allWorkshops) && allWorkshops.length > 0) {
+    const isAssignedInSameSeriesId = allWorkshops.some(
+      (w) => w.seriesId === workshop.seriesId && isUserAssignedToWorkshop(w, userProfile)
+    );
+    if (isAssignedInSameSeriesId) {
+      return true;
+    }
+  }
+
   return false;
 };
 

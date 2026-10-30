@@ -109,13 +109,22 @@ export const WorkshopList: React.FC<WorkshopListProps> = ({
 
   const userId = userProfile?.id || '';
 
-  // Base list: Developers see their own assigned or created workshops; elevated roles see all
+  // Base list:
+  // - Elevated roles see all workshops.
+  // - Developers see workshops assigned to them (editable) PLUS all workshops in any series they belong to (read mode).
   const baseList = useMemo(() => {
     if (!isElevatedRole) {
-      return localWorkshops.filter((w) => isUserAssignedToWorkshop(w, userProfile));
+      const devSeries = safeSeries.filter((s) =>
+        isSeriesAssignedToDeveloper(s, localWorkshops, userProfile)
+      );
+      return localWorkshops.filter(
+        (w) =>
+          isUserAssignedToWorkshop(w, userProfile) ||
+          devSeries.some((s) => isWorkshopInSeries(w, s))
+      );
     }
     return localWorkshops;
-  }, [localWorkshops, isElevatedRole, userProfile]);
+  }, [localWorkshops, safeSeries, isElevatedRole, userProfile]);
 
   // Series available to filter
   const availableSeries = useMemo(() => {
@@ -176,7 +185,7 @@ export const WorkshopList: React.FC<WorkshopListProps> = ({
   };
 
   const canViewFull = (w: Workshop): boolean => {
-    return canUserViewFullWorkshopContent(w, userProfile, safeSeries);
+    return canUserViewFullWorkshopContent(w, userProfile, safeSeries, localWorkshops);
   };
 
   // Count orphan workshops
@@ -226,7 +235,13 @@ export const WorkshopList: React.FC<WorkshopListProps> = ({
         return true;
       })
       .sort((a, b) => {
-        // Prioritize orphan workshops at top if in warning view
+        // For developers, always place their own assigned workshops on top of read-only series peer workshops
+        if (!isElevatedRole) {
+          const aMine = isUserAssignedToWorkshop(a, userProfile) ? 0 : 1;
+          const bMine = isUserAssignedToWorkshop(b, userProfile) ? 0 : 1;
+          if (aMine !== bMine) return aMine - bMine;
+        }
+
         let comparison = 0;
         if (sortBy === 'title') {
           comparison = (a.title || '').localeCompare(b.title || '');
@@ -242,7 +257,7 @@ export const WorkshopList: React.FC<WorkshopListProps> = ({
         }
         return sortOrder === 'desc' ? -comparison : comparison;
       });
-  }, [baseList, searchTerm, selectedSeries, selectedDeveloper, selectedStatus, sortBy, sortOrder, safeSeries]);
+  }, [baseList, searchTerm, selectedSeries, selectedDeveloper, selectedStatus, sortBy, sortOrder, safeSeries, isElevatedRole, userProfile]);
 
   // Execute workshop deletion with optimistic UI update
   const handleDelete = async () => {
@@ -664,13 +679,40 @@ export const WorkshopList: React.FC<WorkshopListProps> = ({
                       </div>
                     </div>
 
-                    {/* Status Badge */}
-                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                      <span
-                        className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${style.bg} ${style.text} ${style.border}`}
-                      >
-                        {w.status}
-                      </span>
+                    {/* Status Badge / Dropdown & Developer Mode Badge */}
+                    <div className="flex flex-col items-end gap-1">
+                      {canChangeStatus && (canModify || isProgramAdmin || isProjectLead || isAcademicAffairs) ? (
+                        <select
+                          value={w.status}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            handleStatusChange(w, e.target.value as WorkshopStatus);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold border cursor-pointer focus:outline-hidden ${style.bg} ${style.text} ${style.border}`}
+                          title="Change Workshop Status"
+                        >
+                          <option value="In Development">In Development</option>
+                          <option value="Approved">Approved</option>
+                        </select>
+                      ) : (
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${style.bg} ${style.text} ${style.border}`}
+                        >
+                          {w.status}
+                        </span>
+                      )}
+                      {!isElevatedRole && (
+                        isUserAssignedToWorkshop(w, userProfile) ? (
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 text-[9px] font-extrabold uppercase tracking-wider">
+                            Assigned to You
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded bg-slate-200/80 text-slate-700 border border-slate-300 text-[9px] font-bold uppercase tracking-wider">
+                            Series • Read Mode
+                          </span>
+                        )
+                      )}
                     </div>
                   </div>
 
@@ -1032,9 +1074,20 @@ export const WorkshopList: React.FC<WorkshopListProps> = ({
                       )}
 
                       <td className="py-3 px-4 whitespace-nowrap">
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${style.bg} ${style.text} ${style.border}`}>
-                          {w.status}
-                        </span>
+                        {canChangeStatus && (canModify || isProgramAdmin || isProjectLead || isAcademicAffairs) ? (
+                          <select
+                            value={w.status}
+                            onChange={(e) => handleStatusChange(w, e.target.value as WorkshopStatus)}
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold border cursor-pointer focus:outline-hidden ${style.bg} ${style.text} ${style.border}`}
+                          >
+                            <option value="In Development">In Development</option>
+                            <option value="Approved">Approved</option>
+                          </select>
+                        ) : (
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${style.bg} ${style.text} ${style.border}`}>
+                            {w.status}
+                          </span>
+                        )}
                       </td>
 
                       <td className="py-3 px-4 text-slate-400 whitespace-nowrap text-[11px]">

@@ -81,6 +81,44 @@ function notifySubscribers(list: WorkshopSeries[]) {
   });
 }
 
+export const formatSeriesId = (
+  name?: string,
+  prefix?: string,
+  existingIds: string[] = []
+): string => {
+  const cleanName = (name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/^series_/, '');
+
+  const slug =
+    cleanName ||
+    (prefix || 'ucw')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') ||
+    'ucw';
+
+  const baseId = `series_${slug}`;
+  if (!existingIds.includes(baseId)) {
+    return baseId;
+  }
+
+  let counter = 2;
+  while (existingIds.includes(`${baseId}_${String(counter).padStart(2, '0')}`)) {
+    counter++;
+  }
+  return `${baseId}_${String(counter).padStart(2, '0')}`;
+};
+
+const isNonCanonicalSeriesId = (s: WorkshopSeries): boolean => {
+  const expected = formatSeriesId(s.name, s.prefix);
+  return s.id !== expected;
+};
+
 export const seriesService = {
   subscribeSeries: (
     onSuccess: (series: WorkshopSeries[]) => void,
@@ -101,9 +139,30 @@ export const seriesService = {
           hasFirestoreSeries = true;
           if (!snap.empty) {
             const deletedIds = getStoredDeletedSeriesIds();
-            const liveList: WorkshopSeries[] = snap.docs
+            const rawDocs: WorkshopSeries[] = snap.docs
               .map((d) => ({ id: d.id, ...(d.data() as any) }))
               .filter((s) => s.id && !deletedIds.includes(s.id));
+
+            const usedIds: string[] = [];
+            const liveList: WorkshopSeries[] = rawDocs.map((s) => {
+              const expectedId = formatSeriesId(s.name, s.prefix, usedIds);
+              usedIds.push(expectedId);
+              if (s.id !== expectedId) {
+                const oldId = s.id;
+                const migrated: WorkshopSeries = {
+                  ...s,
+                  id: expectedId,
+                  updatedAt: new Date().toISOString(),
+                };
+                addStoredDeletedSeriesId(oldId);
+                setDoc(doc(db, COLLECTION_NAME, expectedId), migrated, { merge: true })
+                  .then(() => deleteDoc(doc(db, COLLECTION_NAME, oldId)))
+                  .catch(() => {});
+                return migrated;
+              }
+              return s;
+            });
+
             if (liveList.length > 0) {
               notifySubscribers(liveList);
               fetch('/api/sync-series', {
@@ -196,7 +255,9 @@ export const seriesService = {
       throw new Error('Access Restricted: Only the Program Administrator can create new workshop series.');
     }
 
-    const newId = `series_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const cached = getCachedSeries();
+    const existingIds = cached.map((s) => s.id);
+    const newId = formatSeriesId(seriesData.name, seriesData.prefix, existingIds);
     const newSeries: WorkshopSeries = {
       ...seriesData,
       id: newId,
@@ -210,7 +271,6 @@ export const seriesService = {
       updatedAt: new Date().toISOString(),
     };
 
-    const cached = getCachedSeries();
     notifySubscribers([newSeries, ...cached]);
 
     // 1. Direct Firestore cloud persistence
@@ -253,38 +313,63 @@ export const seriesService = {
 
     const cached = getCachedSeries();
     const existing = cached.find((s) => s.id === id);
+    const otherIds = cached.filter((s) => s.id !== id).map((s) => s.id);
+    const mergedName = updates.name !== undefined ? updates.name : existing?.name;
+    const mergedPrefix = updates.prefix !== undefined ? updates.prefix : existing?.prefix;
+    const targetId = mergedName ? formatSeriesId(mergedName, mergedPrefix, otherIds) : id;
+
+    const updatedDoc: WorkshopSeries = {
+      ...(existing || ({ id: targetId, name: mergedName || '', prefix: mergedPrefix || 'UCW', description: '', workshopCount: 0, workshopIds: [], status: 'Active', learningOutcomes: [], createdBy: user?.id || '', createdAt: new Date().toISOString() } as WorkshopSeries)),
+      ...updates,
+      id: targetId,
+      workshopCount: updates.workshopIds ? updates.workshopIds.length : existing?.workshopCount || 0,
+      updatedAt: new Date().toISOString(),
+    };
+
     if (existing) {
-      const updated: WorkshopSeries = {
-        ...existing,
-        ...updates,
-        workshopCount: updates.workshopIds ? updates.workshopIds.length : existing.workshopCount,
-        updatedAt: new Date().toISOString(),
-      };
-      const updatedList = cached.map((s) => (s.id === id ? updated : s));
+      if (targetId !== id) {
+        addStoredDeletedSeriesId(id);
+      }
+      const updatedList = cached.map((s) => (s.id === id ? updatedDoc : s));
       notifySubscribers(updatedList);
     }
 
-    // 1. Direct Firestore cloud update
+    // 1. Direct Firestore cloud update (handle ID rename if series name changed)
     try {
-      await setDoc(
-        doc(db, COLLECTION_NAME, id),
-        {
-          ...updates,
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
+      if (targetId !== id) {
+        await setDoc(doc(db, COLLECTION_NAME, targetId), updatedDoc, { merge: true });
+        await deleteDoc(doc(db, COLLECTION_NAME, id));
+      } else {
+        await setDoc(
+          doc(db, COLLECTION_NAME, id),
+          {
+            ...updates,
+            id: targetId,
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      }
     } catch (err) {
       console.warn('Firestore series update notice:', err);
     }
 
     // 2. Local server sync if available
     try {
-      await fetch(`/api/series/${encodeURIComponent(id)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
+      if (targetId !== id) {
+        await fetch('/api/series', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedDoc),
+        });
+        await fetch(`/api/series/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      } else {
+        await fetch(`/api/series/${encodeURIComponent(id)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        });
+      }
     } catch (error) {
       console.debug('Updated series API notice:', error);
     }

@@ -147,8 +147,15 @@ async function startServer() {
 
   app.post('/api/series', (req: Request, res: Response) => {
     const newSeries = req.body;
-    if (!newSeries.id) {
-      newSeries.id = `series-${Date.now()}`;
+    if (!newSeries.id || /^series[-_]\d{10,}/i.test(newSeries.id)) {
+      const cleanName = (newSeries.name || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .replace(/^series_/, '');
+      const slug = cleanName || (newSeries.prefix || 'ucw').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
+      newSeries.id = `series_${slug}`;
     }
     const idx = db.series.findIndex((s) => s.id === newSeries.id);
     if (idx >= 0) {
@@ -205,8 +212,24 @@ async function startServer() {
 
   app.post('/api/workshops', (req: Request, res: Response) => {
     const newWorkshop = req.body;
-    if (!newWorkshop.id) {
-      newWorkshop.id = `ws-${Date.now()}`;
+    if (!newWorkshop.id || /^ws[-_]\d{10,}/i.test(newWorkshop.id)) {
+      const seriesSlug = (newWorkshop.seriesName || newWorkshop.seriesId || 'unassigned')
+        .trim()
+        .toLowerCase()
+        .replace(/^series[-_]/, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '') || 'unassigned';
+      const prefixSlug = (newWorkshop.prefix || 'ws')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '') || 'ws';
+      const codeSlug = (newWorkshop.code || '001')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '') || '001';
+      newWorkshop.id = `workshop_${seriesSlug}_${prefixSlug}_${codeSlug}`;
     }
     const idx = db.workshops.findIndex((w) => w.id === newWorkshop.id);
     if (idx >= 0) {

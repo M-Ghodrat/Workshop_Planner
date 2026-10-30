@@ -119,6 +119,61 @@ const sanitizeWorkshop = (w: Workshop): Workshop => {
   };
 };
 
+export const formatWorkshopId = (
+  workshopData: Partial<Workshop>,
+  existingIds: string[] = []
+): string => {
+  const rawSeriesName = (workshopData.seriesName || '').trim();
+  const rawSeriesId = (workshopData.seriesId || '').trim();
+
+  let seriesSlug = '';
+  if (rawSeriesName) {
+    seriesSlug = rawSeriesName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .replace(/^series_/, '');
+  } else if (rawSeriesId) {
+    if (rawSeriesId === 'series_ai_explorer') {
+      seriesSlug = 'applied_ai_1';
+    } else {
+      seriesSlug = rawSeriesId
+        .toLowerCase()
+        .replace(/^series[-_]/, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+    }
+  }
+  if (!seriesSlug || seriesSlug === 'ai_explorer') {
+    seriesSlug = seriesSlug === 'ai_explorer' ? 'applied_ai_1' : 'unassigned';
+  }
+
+  const prefixSlug =
+    (workshopData.prefix || 'ws')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'ws';
+
+  const codeSlug =
+    (workshopData.code || '001')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || '001';
+
+  const baseId = `workshop_${seriesSlug}_${prefixSlug}_${codeSlug}`;
+  if (!existingIds.includes(baseId)) {
+    return baseId;
+  }
+
+  let seq = 2;
+  while (existingIds.includes(`${baseId}_${String(seq).padStart(2, '0')}`)) {
+    seq++;
+  }
+  return `${baseId}_${String(seq).padStart(2, '0')}`;
+};
+
 export const workshopService = {
   subscribeWorkshops: (
     onSuccess: (workshops: Workshop[]) => void,
@@ -151,9 +206,45 @@ export const workshopService = {
           hasFirestoreWorkshops = true;
           if (!snap.empty) {
             const deletedIds = getStoredDeletedWorkshopIds();
-            const liveList: Workshop[] = snap.docs
+            const rawDocs: Workshop[] = snap.docs
               .map((d) => sanitizeWorkshop({ id: d.id, ...(d.data() as any) }))
               .filter((w) => w.id && !deletedIds.includes(w.id));
+
+            const usedIds: string[] = [];
+            const liveList: Workshop[] = rawDocs.map((w) => {
+              const normalizedSeriesId =
+                w.seriesId === 'series_ai_explorer' ? 'series_applied_ai_1' : w.seriesId;
+              const normalizedSeriesName =
+                w.seriesId === 'series_ai_explorer' ||
+                (w.seriesName && w.seriesName.toLowerCase().includes('ai explorer'))
+                  ? 'Applied AI 1'
+                  : w.seriesName;
+
+              const normalizedW: Workshop = {
+                ...w,
+                seriesId: normalizedSeriesId,
+                seriesName: normalizedSeriesName,
+              };
+
+              const expectedId = formatWorkshopId(normalizedW, usedIds);
+              usedIds.push(expectedId);
+
+              if (w.id && w.id !== expectedId) {
+                const oldId = w.id;
+                const migrated: Workshop = {
+                  ...normalizedW,
+                  id: expectedId,
+                  updatedAt: new Date().toISOString(),
+                };
+                addStoredDeletedWorkshopId(oldId);
+                setDoc(doc(db, COLLECTION_NAME, expectedId), migrated, { merge: true })
+                  .then(() => deleteDoc(doc(db, COLLECTION_NAME, oldId)))
+                  .catch(() => {});
+                return migrated;
+              }
+              return normalizedW;
+            });
+
             if (liveList.length > 0) {
               notifySubscribers(liveList);
               fetch('/api/sync-workshops', {
@@ -245,7 +336,9 @@ export const workshopService = {
     workshopData: Omit<Workshop, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'status'>,
     user: UserProfile
   ): Promise<string> => {
-    const newId = `ws_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const cached = getCachedWorkshops();
+    const existingIds = cached.map((w) => w.id).filter(Boolean) as string[];
+    const newId = formatWorkshopId(workshopData, existingIds);
     const newWorkshop: Workshop = {
       ...workshopData,
       id: newId,
@@ -259,12 +352,31 @@ export const workshopService = {
     };
 
     const sanitized = sanitizeWorkshop(newWorkshop);
-    const cached = getCachedWorkshops();
     notifySubscribers([sanitized, ...cached]);
 
     // 1. Direct Firestore cloud persistence
     try {
       await setDoc(doc(db, COLLECTION_NAME, newId), sanitized);
+      if (sanitized.seriesId) {
+        const seriesRef = doc(db, 'workshopSeries', sanitized.seriesId);
+        const seriesSnap = await getDoc(seriesRef);
+        if (seriesSnap.exists()) {
+          const sData = seriesSnap.data();
+          const currentWIds: string[] = Array.isArray(sData.workshopIds) ? sData.workshopIds : [];
+          if (!currentWIds.includes(newId)) {
+            const updatedWIds = [...currentWIds, newId];
+            await setDoc(
+              seriesRef,
+              {
+                workshopIds: updatedWIds,
+                workshopCount: updatedWIds.length,
+                updatedAt: new Date().toISOString(),
+              },
+              { merge: true }
+            );
+          }
+        }
+      }
     } catch (err) {
       console.warn('Firestore workshop write notice:', err);
     }
@@ -290,47 +402,106 @@ export const workshopService = {
     id: string,
     updates: Partial<Workshop>,
     user: UserProfile
-  ): Promise<void> => {
+  ): Promise<string> => {
     const cached = getCachedWorkshops();
     const existing = cached.find((w) => w.id === id);
+    const otherIds = cached
+      .filter((w) => w.id && w.id !== id)
+      .map((w) => w.id as string);
+
+    const mergedCandidate: Partial<Workshop> = {
+      ...(existing || {}),
+      ...updates,
+    };
+
+    const targetId =
+      mergedCandidate.prefix && mergedCandidate.code
+        ? formatWorkshopId(mergedCandidate, otherIds)
+        : id;
+
+    const updatedDoc = sanitizeWorkshop({
+      ...(existing || ({} as Workshop)),
+      ...updates,
+      id: targetId,
+      updatedBy: user.id,
+      updatedByName: user.displayName,
+      updatedAt: new Date().toISOString(),
+    });
+
     if (existing) {
-      const updated = sanitizeWorkshop({
-        ...existing,
-        ...updates,
-        updatedBy: user.id,
-        updatedByName: user.displayName,
-        updatedAt: new Date().toISOString(),
-      });
-      const updatedList = cached.map((w) => (w.id === id ? updated : w));
+      if (targetId !== id) {
+        addStoredDeletedWorkshopId(id);
+      }
+      const updatedList = cached.map((w) => (w.id === id ? updatedDoc : w));
       notifySubscribers(updatedList);
     }
 
-    // 1. Direct Firestore cloud update
+    // 1. Direct Firestore cloud update (and migrate ID if series/prefix/code changed)
     try {
-      await setDoc(
-        doc(db, COLLECTION_NAME, id),
-        {
-          ...updates,
-          updatedBy: user.id,
-          updatedByName: user.displayName,
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
+      if (targetId !== id) {
+        await setDoc(doc(db, COLLECTION_NAME, targetId), updatedDoc, { merge: true });
+        await deleteDoc(doc(db, COLLECTION_NAME, id));
+      } else {
+        await setDoc(
+          doc(db, COLLECTION_NAME, id),
+          {
+            ...updates,
+            id: targetId,
+            updatedBy: user.id,
+            updatedByName: user.displayName,
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      }
+
+      // Sync series workshopIds if seriesId is set
+      if (updatedDoc.seriesId) {
+        const seriesRef = doc(db, 'workshopSeries', updatedDoc.seriesId);
+        const seriesSnap = await getDoc(seriesRef);
+        if (seriesSnap.exists()) {
+          const sData = seriesSnap.data();
+          const currentWIds: string[] = Array.isArray(sData.workshopIds) ? sData.workshopIds : [];
+          const filteredWIds = currentWIds.filter((wid) => wid !== id);
+          if (!filteredWIds.includes(targetId)) {
+            filteredWIds.push(targetId);
+          }
+          await setDoc(
+            seriesRef,
+            {
+              workshopIds: filteredWIds,
+              workshopCount: filteredWIds.length,
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+        }
+      }
     } catch (err) {
       console.warn('Firestore workshop update notice:', err);
     }
 
     // 2. Local server sync if available
     try {
-      await fetch(`/api/workshops/${encodeURIComponent(id)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
+      if (targetId !== id) {
+        await fetch('/api/workshops', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedDoc),
+        });
+        await fetch(`/api/workshops/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      } else {
+        await fetch(`/api/workshops/${encodeURIComponent(id)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        });
+      }
     } catch (error) {
       console.debug('Updated workshop API notice:', error);
     }
+
+    return targetId;
   },
 
   updateStatus: async (

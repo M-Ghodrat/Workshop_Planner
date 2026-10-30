@@ -2,18 +2,15 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   User as FirebaseUser,
   signInWithPopup,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   signInAnonymously,
   signOut,
   onAuthStateChanged,
-  updateProfile,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db, googleProvider } from '../config/firebase';
 import { UserProfile, UserRole } from '../types';
 import { INITIAL_USERS } from '../data/initialData';
-import { formatUserId } from '../services/userService';
+import { formatUserId, userService } from '../services/userService';
 
 interface AuthContextType {
   currentUser: FirebaseUser | null;
@@ -245,19 +242,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       const normalizedEmail = email.toLowerCase().trim();
+      const trimmedPass = pass.trim();
 
-      // Check if matches known faculty presets
-      const matchedUser = INITIAL_USERS.find(
+      // Strictly enforce standard password '123456' for all accounts
+      if (trimmedPass !== '123456') {
+        throw new Error('Invalid password. Please check your credentials and try again.');
+      }
+
+      // Ensure Firebase session is active so Firestore queries work seamlessly
+      try {
+        if (!auth.currentUser) {
+          await signInAnonymously(auth);
+        }
+      } catch {}
+
+      // 1. Check Firestore users collection first (includes any users added via User Management)
+      let firestoreUsers: UserProfile[] = [];
+      try {
+        firestoreUsers = await userService.getAllUsers();
+      } catch {}
+
+      const expectedIdFromEmail = formatUserId(undefined, normalizedEmail);
+      const matchedFirestoreUser = firestoreUsers.find(
         (u) =>
-          u.email.toLowerCase() === normalizedEmail ||
-          (normalizedEmail.includes('admin') && u.role === 'administrator') ||
-          (normalizedEmail.includes('developer') && u.role === 'developer') ||
+          (u.email || '').toLowerCase().trim() === normalizedEmail ||
+          u.id === expectedIdFromEmail ||
           (normalizedEmail.includes('mohsen') && u.id.includes('mohsen_ghodrat'))
       );
 
+      // 2. Fallback to known faculty presets in INITIAL_USERS
+      const matchedPresetUser = INITIAL_USERS.find(
+        (u) =>
+          u.email.toLowerCase().trim() === normalizedEmail ||
+          (normalizedEmail === 'admin@ucw.ca' && u.role === 'administrator') ||
+          (normalizedEmail === 'admin@ucanwest.ca' && u.role === 'administrator') ||
+          (normalizedEmail.includes('mohsen') && u.id.includes('mohsen_ghodrat'))
+      );
+
+      const matchedUser = matchedFirestoreUser || matchedPresetUser;
+
       if (matchedUser) {
         let finalRole = matchedUser.role;
-        // Check role overrides
+        // Check role overrides for Mohsen Ghodrat
         if (isMohsenGhodratProfile(matchedUser)) {
           try {
             const rawOverrides = localStorage.getItem(ROLE_OVERRIDES_KEY);
@@ -272,65 +298,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const activeProfile: UserProfile = {
           ...matchedUser,
+          id: isMohsenGhodratProfile(matchedUser)
+            ? 'dev_mohsen_ghodrat'
+            : formatUserId(matchedUser.displayName, matchedUser.email),
           role: finalRole,
         };
 
         setUserProfile(activeProfile);
         localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(activeProfile));
-
-        try {
-          if (!auth.currentUser) {
-            await signInAnonymously(auth);
-          }
-        } catch {}
         return;
       }
 
-      // If user typed real email and password, attempt Firebase auth if available
-      try {
-        const result = await signInWithEmailAndPassword(auth, email, pass);
-        if (result?.user) {
-          await fetchOrCreateProfile(result.user);
-          return;
-        }
-      } catch (authErr: any) {
-        console.warn('Firebase Email auth unavailable, logging in with faculty session profile:', authErr?.message || authErr);
-      }
-
-      // Automatically register / create session profile for the entered credentials
+      // 3. If email is not yet in Firestore or presets, create profile with structured dev_<firstname>_<lastname> ID
       const isMohsen =
         normalizedEmail.includes('mohsen') ||
         normalizedEmail.includes('ghodrat');
-      const isDefaultAdmin = ADMIN_EMAILS.includes(normalizedEmail) || normalizedEmail.includes('admin');
+      const isDefaultAdmin = ADMIN_EMAILS.includes(normalizedEmail);
       const assignedRole: UserRole = isMohsen
         ? 'workshop_lead'
         : isDefaultAdmin
         ? 'administrator'
         : 'developer';
 
-      const displayName = isMohsen ? 'Mohsen Ghodrat' : (email.split('@')[0] || 'UCW Faculty Member');
-      const structuredId = isMohsen ? 'dev_mohsen_ghodrat' : formatUserId(displayName, normalizedEmail);
+      const rawPrefix = normalizedEmail.split('@')[0] || 'Faculty Member';
+      const formattedDisplayName = isMohsen
+        ? 'Mohsen Ghodrat'
+        : rawPrefix
+            .split(/[._-]+/)
+            .filter(Boolean)
+            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ');
+      const structuredId = isMohsen
+        ? 'dev_mohsen_ghodrat'
+        : formatUserId(formattedDisplayName, normalizedEmail);
 
       const autoProfile: UserProfile = {
         id: structuredId,
         email: normalizedEmail,
-        displayName,
+        displayName: formattedDisplayName,
         role: assignedRole,
         department:
           assignedRole === 'administrator'
             ? 'Administration & Governance'
             : 'School of Business & Technology',
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
+
+      try {
+        await setDoc(doc(db, 'users', structuredId), autoProfile, { merge: true });
+      } catch {}
 
       setUserProfile(autoProfile);
       localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(autoProfile));
-      try {
-        if (!auth.currentUser) await signInAnonymously(auth);
-      } catch {}
-    } catch (error) {
-      console.error('Email Sign In failed:', error);
-      throw error;
     } finally {
       setLoading(false);
     }
@@ -339,38 +359,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUpWithEmail = async (email: string, pass: string, name: string, role: UserRole = 'developer') => {
     setLoading(true);
     try {
-      try {
-        const result = await createUserWithEmailAndPassword(auth, email, pass);
-        if (result?.user) {
-          await updateProfile(result.user, { displayName: name });
-          await fetchOrCreateProfile(result.user, role);
-          return;
-        }
-      } catch (authErr: any) {
-        console.warn('Firebase Email signup unavailable, registering local faculty account:', authErr?.message || authErr);
+      if (pass.trim() !== '123456') {
+        throw new Error('Invalid password. Please check your credentials and try again.');
       }
 
-      // Fallback registration using structured dev_<firstname>_<lastname> ID
+      try {
+        if (!auth.currentUser) {
+          await signInAnonymously(auth);
+        }
+      } catch {}
+
+      // Save registration using structured dev_<firstname>_<lastname> ID
       const structuredId = formatUserId(name, email);
       const customProfile: UserProfile = {
         id: structuredId,
         email: email.toLowerCase().trim(),
-        displayName: name,
+        displayName: name.trim(),
         role,
         department:
           role === 'administrator'
             ? 'Administration & Governance'
             : 'School of Business & Technology',
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       };
       try {
         await setDoc(doc(db, 'users', structuredId), customProfile, { merge: true });
       } catch {}
       setUserProfile(customProfile);
       localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(customProfile));
-      try {
-        if (!auth.currentUser) await signInAnonymously(auth);
-      } catch {}
     } finally {
       setLoading(false);
     }
@@ -382,8 +399,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await signOut(auth);
       setCurrentUser(null);
       setUserProfile(null);
-    } catch (error) {
-      console.error('Sign Out failed:', error);
+    } catch {
       localStorage.removeItem(DEMO_STORAGE_KEY);
       setCurrentUser(null);
       setUserProfile(null);
@@ -446,9 +462,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const canDeleteSeries = isProgramAdmin;
   const canEditSeries = isProgramAdmin || isWorkshopLead;
   const canInitiateWorkshop = isProgramAdmin || isProjectLead || isWorkshopLead;
-  const canApproveWorkshop = isProgramAdmin || isProjectLead || isAcademicAffairs;
+  const canApproveWorkshop = isProgramAdmin || isProjectLead || isWorkshopLead || isAcademicAffairs;
   const canAssignDevelopers = isProgramAdmin || isProjectLead || isWorkshopLead;
-  const canChangeStatus = isProgramAdmin || isProjectLead || isAcademicAffairs;
+  const canChangeStatus = isProgramAdmin || isProjectLead || isWorkshopLead || isAcademicAffairs;
   const canSwitchRoles = isMohsenGhodratProfile(userProfile);
 
   return (

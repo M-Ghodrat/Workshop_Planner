@@ -117,9 +117,6 @@ export const CollaboratorsTab: React.FC<CollaboratorsTabProps> = ({
               >
                 <option value="Lead Developer">Lead Developer</option>
                 <option value="Co-Developer">Co-Developer</option>
-                <option value="Instructional Designer">Instructional Designer</option>
-                <option value="Technical Reviewer">Technical Reviewer</option>
-                <option value="Workshop Facilitator">Workshop Facilitator</option>
               </select>
             </div>
           </div>
@@ -153,7 +150,10 @@ export const CollaboratorsTab: React.FC<CollaboratorsTabProps> = ({
           <p className="text-xs text-slate-400 italic py-3">No developers assigned yet.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {currentDevs.map((dev) => (
+            {currentDevs.map((dev) => {
+              const normalizedRole =
+                dev.role === 'Lead Developer' ? 'Lead Developer' : 'Co-Developer';
+              return (
               <div
                 key={dev.id}
                 className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-3"
@@ -168,19 +168,16 @@ export const CollaboratorsTab: React.FC<CollaboratorsTabProps> = ({
                     <div className="flex items-center gap-2 mt-1">
                       {canAssignDevelopers ? (
                         <select
-                          value={dev.role || 'Co-Developer'}
+                          value={normalizedRole}
                           onChange={(e) => handleUpdateRole(dev.id, e.target.value)}
                           className="text-[10px] font-semibold px-2 py-0.5 rounded-md border border-slate-300 bg-white text-slate-800 focus:outline-hidden"
                         >
                           <option value="Lead Developer">Lead Developer</option>
                           <option value="Co-Developer">Co-Developer</option>
-                          <option value="Instructional Designer">Instructional Designer</option>
-                          <option value="Technical Reviewer">Technical Reviewer</option>
-                          <option value="Workshop Facilitator">Workshop Facilitator</option>
                         </select>
                       ) : (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700">
-                          {dev.role || 'Co-Developer'}
+                          {normalizedRole}
                         </span>
                       )}
                     </div>
@@ -198,7 +195,8 @@ export const CollaboratorsTab: React.FC<CollaboratorsTabProps> = ({
                   </button>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
